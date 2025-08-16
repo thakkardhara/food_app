@@ -25,7 +25,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 app.get('/', (req, res) => {
@@ -37,6 +36,6 @@ app.get('/', (req, res) => {
 
 
 http.listen(port, () => {
-  console.log(`Server running on ${process.env.PUBLIC_API_URL}`);
+  console.log(`Server running on ${process.env.PORT}`);
 });
 
