@@ -7,6 +7,12 @@ const { isValidGmail, isValidPhone, isValidPassword, uploadImage, generateOTP } 
 const JWT_SECRET = process.env.JWT_SECRET_KEY; 
  const sendMail = require('../utils/sendMail');
 
+
+
+
+
+
+
 const register = async (req, res) => {
     try {
         let { username, email, phone, password } = req.body || {};
@@ -27,30 +33,68 @@ const register = async (req, res) => {
             return res.status(400).json({ msg: 'Password must be at least 6 characters and include a letter, a number, and a special character' });
         }
 
-        // Check if user exists
-        const [results] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
+        // ✅ Check if user already exists
+        const [results] = await db.query(
+            `SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, 
+            [email]
+        );
         if (results.length > 0) {
             return res.status(400).json({ msg: 'User already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        
-        const sql = `INSERT INTO ${TABLES.USER_TABLE} (username, email, phone, password)
-                     VALUES (?, ?, ?, ?)`;
-        const [result] = await db.query(sql, [username, email, phone, hashedPassword]);
+        // 🔢 Generate OTP and expiry
+        const otp = generateOTP();
+        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+
+        // ✅ Insert user with OTP and expiry
+        const sql = `INSERT INTO ${TABLES.USER_TABLE} (username, email, phone, password, otp, otp_expiry)
+                     VALUES (?, ?, ?, ?, ?, ?)`;
+        const [result] = await db.query(sql, [username, email, phone, hashedPassword, otp, otpExpiry]);
+
         const user = {
             id: result.insertId,
             username,
             email,
             phone
         };
-        res.status(201).json({ msg: 'User registered successfully', user });
+
+        // 🔑 Generate JWT token
+        const token = jwt.sign(
+            { id: user.id, email: user.email },
+            process.env.JWT_SECRET_KEY,  
+            { expiresIn: "8h" }
+        );
+
+        // 📧 Send OTP email
+        try {
+            await sendMail({
+                to: email,
+                subject: "Your OTP Code",
+                text: `Your OTP is: ${otp}`,
+                html: `<p>Hello <b>${username}</b>,</p>
+                       <p>Your OTP is: <b>${otp}</b></p>
+                       <p>This OTP is valid for 10 minutes.</p>`
+            });
+            console.log("OTP email sent to:", email);
+        } catch (mailErr) {
+            console.error("Error sending OTP email:", mailErr);
+        }
+
+        return res.status(201).json({
+            msg: 'User registered successfully. OTP sent to your email.',
+            user,
+            token
+        });
+
     } catch (error) {
         console.error('Error in Registration:', error);
         res.status(500).json({ msg: 'Internal Server Error' });
     }
 };
+
+
 
 const login = async (req, res) => {
   try {
