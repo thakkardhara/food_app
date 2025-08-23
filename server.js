@@ -31,7 +31,9 @@ app.get('/', (req, res) => {
   res.send('api working!');
 });
 
- app.use('/api', require('./routes/authRoutes'));
+ app.use('/api/auth', require('./routes/authRoutes'));
+ app.use('/api', require('./routes/addressRoutes'));
+
 
 
 

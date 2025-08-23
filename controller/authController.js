@@ -1,17 +1,19 @@
 const db = require('../db/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const path = require('path');
-const TABLES = require('../utils/tables'); 
-const { isValidGmail, isValidPhone, isValidPassword, uploadImage, generateOTP } = require('../utils/validation');
-const JWT_SECRET = process.env.JWT_SECRET_KEY; 
- const sendMail = require('../utils/sendMail');
+const TABLES = require('../utils/tables');
+const { isValidGmail, isValidPhone, isValidPassword, generateOTP } = require('../utils/validation');
+const sendMail = require('../utils/sendMail');
 
+const JWT_SECRET = process.env.JWT_SECRET_KEY;
 
-
-
-
-
+const generateToken = (userId, email) => {
+    return jwt.sign(
+        { id: userId, email },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+    );
+};
 
 const register = async (req, res) => {
     try {
@@ -20,72 +22,53 @@ const register = async (req, res) => {
         if (!username || !email || !password || !phone) {
             return res.status(400).json({ msg: 'Missing required fields' });
         }
-
         if (!isValidGmail(email)) {
             return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
         }
-
         if (!isValidPhone(phone)) {
             return res.status(400).json({ msg: 'Phone number must be exactly 10 digits' });
         }
-
         if (!isValidPassword(password)) {
-            return res.status(400).json({ msg: 'Password must be at least 6 characters and include a letter, a number, and a special character' });
+            return res.status(400).json({ msg: 'Password must be at least 6 chars with letter, number & special char' });
         }
 
-        // ✅ Check if user already exists
-        const [results] = await db.query(
-            `SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, 
+        const [existing] = await db.query(
+            `SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`,
             [email]
         );
-        if (results.length > 0) {
+        if (existing.length > 0) {
             return res.status(400).json({ msg: 'User already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 🔢 Generate OTP and expiry
         const otp = generateOTP();
-        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min
 
-        // ✅ Insert user with OTP and expiry
-        const sql = `INSERT INTO ${TABLES.USER_TABLE} (username, email, phone, password, otp, otp_expiry)
-                     VALUES (?, ?, ?, ?, ?, ?)`;
-        const [result] = await db.query(sql, [username, email, phone, hashedPassword, otp, otpExpiry]);
+        const sql = `INSERT INTO ${TABLES.USER_TABLE} 
+                     (username, email, phone, password, otp, otp_expiry, isVerified, status) 
+                     VALUES (?, ?, ?, ?, ?, ?, 0, 1)`;
 
-        const user = {
-            id: result.insertId,
+        const [result] = await db.query(sql, [
             username,
             email,
-            phone
-        };
+            phone,
+            hashedPassword,
+            otp,
+            otpExpiry
+        ]);
 
-        // 🔑 Generate JWT token
-        const token = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET_KEY,  
-            { expiresIn: "8h" }
-        );
+        // Send OTP email
+        await sendMail({
+            to: email,
+            subject: "Your OTP Code",
+            text: `Your OTP is: ${otp}`,
+            html: `<p>Hello <b>${username}</b>,</p><p>Your OTP is: <b>${otp}</b></p>`
+        });
 
-        // 📧 Send OTP email
-        try {
-            await sendMail({
-                to: email,
-                subject: "Your OTP Code",
-                text: `Your OTP is: ${otp}`,
-                html: `<p>Hello <b>${username}</b>,</p>
-                       <p>Your OTP is: <b>${otp}</b></p>
-                       <p>This OTP is valid for 10 minutes.</p>`
-            });
-            console.log("OTP email sent to:", email);
-        } catch (mailErr) {
-            console.error("Error sending OTP email:", mailErr);
-        }
-
-        return res.status(201).json({
-            msg: 'User registered successfully. OTP sent to your email.',
-            user,
-            token
+        res.status(201).json({
+            msg: 'User registered successfully. Please verify OTP sent to your email.',
+            user: { id: result.insertId, username, email, phone }
         });
 
     } catch (error) {
@@ -94,106 +77,187 @@ const register = async (req, res) => {
     }
 };
 
+const verifyOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ msg: 'Email and OTP are required' });
+        }
 
+        const [users] = await db.query(
+            `SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`,
+            [email]
+        );
+        if (users.length === 0) {
+            return res.status(400).json({ msg: 'Invalid email' });
+        }
+
+        const user = users[0];
+
+        // Check OTP validity
+        if (String(user.otp) !== String(otp)) {
+            return res.status(400).json({ msg: 'Invalid OTP' });
+        }
+        if (new Date() > new Date(user.otp_expiry)) {
+            return res.status(400).json({ msg: 'OTP expired' });
+        }
+
+        await db.query(
+            `UPDATE ${TABLES.USER_TABLE} SET isVerified = 1, otp = NULL, otp_expiry = NULL WHERE id = ?`,
+            [user.id]
+        );
+
+        res.status(200).json({
+            msg: 'OTP verified successfully. Now you can login.',
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                phone: user.phone
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in OTP Verification:', error);
+        res.status(500).json({ msg: 'Internal Server Error' });
+    }
+};
 
 const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ msg: 'Email and password are required' });
+        }
 
-    // Check if user exists
-    const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
-    if (users.length === 0) {
-      return res.status(400).json({ msg: 'Invalid email or password' });
+        const [users] = await db.query(
+            `SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`,
+            [email]
+        );
+        if (users.length === 0) {
+            return res.status(400).json({ msg: 'Invalid email or password' });
+        }
+
+        const user = users[0];
+
+        if (!user.isVerified) {
+            return res.status(403).json({ msg: 'Please verify your email first' });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ msg: 'Invalid email or password' });
+        }
+
+        const token = generateToken(user.id, user.email);
+
+        res.status(200).json({
+            msg: 'Login successful',
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                phone: user.phone
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in Login:', error);
+        res.status(500).json({ msg: 'Internal Server Error' });
     }
-
-    const user = users[0];
-
-    // Compare password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid email or password' });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: '10h' }
-    );
-
-    // Generate OTP
-    const otp = generateOTP(6);
-    const expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
-
-    // Store OTP in DB
-    await db.query(
-      `UPDATE ${TABLES.USER_TABLE} SET otp = ?, otp_expiry = ? WHERE id = ?`,
-      [otp, expiry, user.id]
-    );
-
-    // Send OTP via email
-    await sendMail({
-      to: email,
-      subject: 'Your OTP Code',
-      text: `Your OTP is ${otp}. It is valid for 5 minutes.`,
-      html: `<p>Your OTP is <b>${otp}</b>. It is valid for 5 minutes.</p>`
-    });
-
-    res.status(200).json({
-      msg: 'Login successful. OTP sent to your email.',
-      token,
-      user: {
-        id: user.id,
-        username: user.username || '',
-        email: user.email || '',
-        phone: user.phone || ''
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in Login:', error);
-    res.status(500).json({ msg: 'Internal Server Error' });
-  }
 };
 
-const verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+const verifyToken = (req, res) => {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) return res.status(401).json({ msg: 'No token provided' });
 
-    if (!email || !otp) {
-      return res.status(400).json({ msg: 'Email and OTP are required' });
-    }
-
-    // Fetch user
-    const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
-    if (users.length === 0) {
-      return res.status(400).json({ msg: 'Invalid email' });
-    }
-
-    const user = users[0];
-
-    // Check OTP and expiry
-    if (user.otp !== otp) {
-      return res.status(400).json({ msg: 'Invalid OTP' });
-    }
-
-    if (new Date() > new Date(user.otp_expiry)) {
-      return res.status(400).json({ msg: 'OTP expired' });
-    }
-
-    // Mark verified
-    await db.query(
-      `UPDATE ${TABLES.USER_TABLE} SET isVerified = 1 WHERE id = ?`,
-      [user.id]
-    );
-
-    res.status(200).json({ msg: 'OTP verified successfully.' });
-
-  } catch (error) {
-    console.error('Error in OTP Verification:', error);
-    res.status(500).json({ msg: 'Internal Server Error' });
-  }
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err) return res.status(403).json({ msg: 'Invalid or expired token' });
+        res.status(200).json({
+            msg: 'Token is valid',
+            user_id: decoded.id,
+            email: decoded.email
+        });
+    });
 };
+
+const logout = (req, res) => {
+    res.status(200).json({ msg: 'Logged out successfully (delete token on client side)' });
+};
+
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required', status: false });
+        }
+        if (!isValidGmail(email)) {
+            return res.status(400).json({ error: 'Only @gmail.com emails are allowed', status: false });
+        }
+        const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
+        if (users.length === 0) {
+            return res.status(404).json({ error: 'User not found', status: false });
+        }
+        const user = users[0];
+        const otp = Math.floor(100000 + Math.random() * 900000);
+        const expiry = new Date(Date.now() + 15 * 60 * 1000);
+        await db.query(`UPDATE ${TABLES.USER_TABLE} SET otp = ?, otp_expiry = ? WHERE id = ?`, [otp, expiry, user.id]);
+
+        // Send OTP email
+       
+        try {
+            await sendMail({
+                to: email,
+                subject: 'Your OTP for Password Reset',
+                text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
+                html: `<p>Your OTP for password reset is: <b>${otp}</b>. It is valid for 15 minutes.</p>`
+            });
+        } catch (mailErr) {
+            return res.status(500).json({ error: 'Failed to send OTP email', status: false });
+        }
+
+        return res.status(200).json({ message: 'OTP sent successfully', status: true });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ error: 'Server error', status: false });
+    }
+};
+
+const changePassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ msg: 'Email, OTP, and new password are required' });
+        }
+        if (!isValidGmail(email)) {
+            return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
+        }
+        if (!isValidPassword(newPassword)) {
+            return res.status(400).json({ msg: 'Password must be at least 6 characters and include a letter, a number, and a special character' });
+        }
+        const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
+        if (users.length === 0) {
+            return res.status(404).json({ msg: 'User not found' });
+        }
+        const user = users[0];
+        if (String(user.otp) !== String(otp) || new Date() > new Date(user.otp_expiry)) {
+            return res.status(400).json({ msg: 'Invalid or expired OTP' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+ 
+    await db.query(`UPDATE ${TABLES.USER_TABLE} SET password = ?, otp = NULL, otp_expiry = NULL WHERE id = ?`, [hashedPassword, user.id]);
+            
+        res.status(200).json({ msg: 'Password changed successfully' });
+
+        
+    } catch (error) {
+        console.error('Error in changePassword:', error);
+        res.status(500).json({ msg: 'Internal Server Error' });
+        
+    }
+}
 
 
 const getUsers = async (req, res) => {
@@ -319,95 +383,15 @@ const updateUser = async (req, res) => {
 };
 
 
-
-// const forgotPassword = async (req, res) => {
-//     try {
-//         const { email } = req.body;
-//         if (!email) {
-//             return res.status(400).json({ error: 'Email is required', status: false });
-//         }
-//         if (!isValidGmail(email)) {
-//             return res.status(400).json({ error: 'Only @gmail.com emails are allowed', status: false });
-//         }
-//         const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
-//         if (users.length === 0) {
-//             return res.status(404).json({ error: 'User not found', status: false });
-//         }
-//         const user = users[0];
-//         const otp = Math.floor(100000 + Math.random() * 900000);
-//         const expiry = new Date(Date.now() + 15 * 60 * 1000);
-//         await db.query(`UPDATE ${TABLES.USER_TABLE} SET otp = ?, otp_expiry = ? WHERE id = ?`, [otp, expiry, user.id]);
-
-//         // Send OTP email
-       
-//         try {
-//             await sendMail({
-//                 to: email,
-//                 subject: 'Your OTP for Password Reset',
-//                 text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
-//                 html: `<p>Your OTP for password reset is: <b>${otp}</b>. It is valid for 15 minutes.</p>`
-//             });
-//         } catch (mailErr) {
-//             return res.status(500).json({ error: 'Failed to send OTP email', status: false });
-//         }
-
-//         return res.status(200).json({ message: 'OTP sent successfully', status: true });
-//     } catch (error) {
-//         console.log(error);
-//         return res.status(500).json({ error: 'Server error', status: false });
-//     }
-// };
-
-const changePassword = async (req, res) => {
-    try {
-        const { email, otp, newPassword } = req.body;
-        if (!email || !otp || !newPassword) {
-            return res.status(400).json({ msg: 'Email, OTP, and new password are required' });
-        }
-        if (!isValidGmail(email)) {
-            return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
-        }
-        if (!isValidPassword(newPassword)) {
-            return res.status(400).json({ msg: 'Password must be at least 6 characters and include a letter, a number, and a special character' });
-        }
-        const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
-        if (users.length === 0) {
-            return res.status(404).json({ msg: 'User not found' });
-        }
-        const user = users[0];
-        if (String(user.otp) !== String(otp) || new Date() > new Date(user.otp_expiry)) {
-            return res.status(400).json({ msg: 'Invalid or expired OTP' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
- 
-    await db.query(`UPDATE ${TABLES.USER_TABLE} SET password = ?, otp = NULL, otp_expiry = NULL WHERE id = ?`, [hashedPassword, user.id]);
-            
-        res.status(200).json({ msg: 'Password changed successfully' });
-
-        
-    } catch (error) {
-        console.error('Error in changePassword:', error);
-        res.status(500).json({ msg: 'Internal Server Error' });
-        
-    }
-}
-
-const verifyToken = (req, res) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ msg: 'No token provided' });
-    }
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) {
-            return res.status(403).json({ msg: 'Invalid or expired token' });
-        }
-        // Token is valid
-        res.status(200).json({ msg: 'Token is valid', user_id: decoded.id, email: decoded.email });
-    });
+module.exports = {
+    register,
+    verifyOtp,
+    login,
+    verifyToken,
+    logout,
+    forgotPassword,
+    changePassword,
+    updateUser,
+    getUsers,
+    deleteUser
 };
-
-
-
-
-module.exports = { verifyToken, register, login, updateUser, getUsers, deleteUser  ,changePassword , verifyOtp};
