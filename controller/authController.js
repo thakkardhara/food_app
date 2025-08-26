@@ -331,16 +331,20 @@ const deleteUser = async (req, res) => {
 };
 
 
+
+
 const updateUser = async (req, res) => {
     try {
         const { id } = req.params;  
         let { username, email, phone, password } = req.body || {};
+
 
         const [userCheck] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE id = ?`, [id]);
         if (userCheck.length === 0) {
             return res.status(404).json({ msg: 'User not found' });
         }
 
+        // Validations
         if (email && !isValidGmail(email)) {
             return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
         }
@@ -355,8 +359,14 @@ const updateUser = async (req, res) => {
 
         let hashedPassword = password ? await bcrypt.hash(password, 10) : userCheck[0].password;
 
+
+        let profilePhoto = userCheck[0].profile || null;
+        if (req.file) {
+            profilePhoto = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+        }
+
         const sql = `UPDATE ${TABLES.USER_TABLE} 
-                     SET username = ?, email = ?, phone = ?, password = ?
+                     SET username = ?, email = ?, phone = ?, password = ?, profile = ?
                      WHERE id = ?`;
 
         await db.query(sql, [
@@ -364,6 +374,7 @@ const updateUser = async (req, res) => {
             email || userCheck[0].email,
             phone || userCheck[0].phone,
             hashedPassword,
+            profilePhoto,
             id
         ]);
 
@@ -373,7 +384,8 @@ const updateUser = async (req, res) => {
                 id,
                 username: username || userCheck[0].username,
                 email: email || userCheck[0].email,
-                phone: phone || userCheck[0].phone
+                phone: phone || userCheck[0].phone,
+                profile: profilePhoto
             }
         });
     } catch (error) {
@@ -381,6 +393,9 @@ const updateUser = async (req, res) => {
         res.status(500).json({ msg: 'Internal Server Error' });
     }
 };
+
+
+
 
 
 module.exports = {

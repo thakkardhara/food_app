@@ -19,6 +19,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controller/authController');
 const authMiddleware = require('../utils/authValidation');
+const upload = require('../utils/multer');
 
 // Register (no token here)
 router.post('/register', authController.register);
@@ -43,6 +44,6 @@ router.post('/change-password',authController.changePassword)
 router.get('/get-users',authController.getUsers)
 router.get('/get-users/:id',authController.getUsers)
 router.delete('/delete/:id',authMiddleware,authController.deleteUser)
-router.patch('/update/:id',authMiddleware,authController.updateUser)
+router.patch('/update/:id', upload.single('profile'),authMiddleware, authController.updateUser);
 
 module.exports = router;
