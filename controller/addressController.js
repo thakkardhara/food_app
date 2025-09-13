@@ -4,6 +4,15 @@ const TABLES = require('../utils/tables');
 // Add new address
 const addAddress = (req, res) => {
   const user_id = req.user_id;
+
+  // Log the user ID to see if the auth middleware is working
+  console.log('User ID from middleware:', user_id);
+
+  if (!user_id) {
+    console.error('Authentication Error: user_id is missing from the request.');
+    return res.status(401).json({ message: 'Authentication failed. Please log in.' });
+  }
+
   const {
     addressline1,
     addressline2,
@@ -53,12 +62,17 @@ const addAddress = (req, res) => {
     longitude || null,
   ];
 
+  console.log("Executing DB query with values:", values);
+
   db.query(query, values, (err, result) => {
     if (err) {
+      // Log the full database error for debugging
       console.error('DB Error:', err);
-      return res.status(500).json({ message: 'Database error' });
+      // Send a more detailed error message to the client
+      return res.status(500).json({ message: 'Database error', error: err.sqlMessage });
     }
-
+    console.log("Before sending response");
+  console.log("after sending response");
     return res.status(201).json({
       message: '✅ Address added successfully',
       address_id: result.insertId,
@@ -76,10 +90,12 @@ const addAddress = (req, res) => {
       }
     });
   });
+  res.status(201).json({ message: 'Address added successfully' , data: req.body });
+
 };
 
 // Get all addresses or single address by ID
-const getAddress = (req, res) => {
+const getAddress = async (req, res) => {
   const addressId = req.params.id;
 
   let query = `SELECT * FROM ${TABLES.USER_ADDRESS_TABLE}`;
@@ -90,11 +106,8 @@ const getAddress = (req, res) => {
     params.push(addressId);
   }
 
-  db.query(query, params, (err, results) => {
-    if (err) {
-      console.error('DB Error:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+  try {
+    const [results] = await db.query(query, params);
 
     if (addressId && results.length === 0) {
       return res.status(404).json({ message: 'Address not found' });
@@ -104,30 +117,202 @@ const getAddress = (req, res) => {
       message: '✅ Address data fetched successfully',
       data: addressId ? results[0] : results
     });
-  });
+
+  } catch (err) {
+    console.error('DB Error:', err);
+    return res.status(500).json({ message: 'Database error' });
+  }
 };
 
-// Get all addresses for the logged-in user
-const getMyAddresses = (req, res) => {
+const getMyAddresses = async (req, res) => {
   const user_id = req.user_id;
+
+  if (!user_id) {
+    return res.status(401).json({
+      message: 'Authentication failed',
+      data: null,
+    });
+  }
 
   const query = `SELECT * FROM ${TABLES.USER_ADDRESS_TABLE} WHERE user_id = ?`;
 
-  db.query(query, [user_id], (err, results) => {
-    if (err) {
-      console.error('DB Error:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
+  try {
+    // Await the DB query (assuming db.query returns a promise)
+    const [results] = await db.query(query, [user_id]);
 
     return res.status(200).json({
       message: '✅ User addresses fetched successfully',
-      data: results
+      data: results,
     });
-  });
+  } catch (err) {
+    console.error('DB Error:', err);
+    return res.status(500).json({
+      message: 'Database error',
+      data: null,
+    });
+  }
 };
+
+
+//delete address
+const deleteAddress = async (req, res) => {
+  const user_id = req.user_id;      // Logged-in user id from middleware
+  const addressId = req.params.id;  // Address id from URL params
+
+  if (!user_id) {
+    return res.status(401).json({
+      message: 'Authentication failed',
+      data: null,
+    });
+  }
+
+  if (!addressId) {
+    return res.status(400).json({
+      message: 'Address ID is required',
+      data: null,
+    });
+  }
+
+  const query = `DELETE FROM ${TABLES.USER_ADDRESS_TABLE} WHERE id = ? AND user_id = ?`;
+
+  try {
+    const [result] = await db.query(query, [addressId, user_id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: 'Address not found or not authorized to delete',
+        data: null,
+      });
+    }
+
+    return res.status(200).json({
+      message: '✅ Address deleted successfully',
+      data: null,
+    });
+  } catch (err) {
+    console.error('DB Error:', err);
+    return res.status(500).json({
+      message: 'Database error',
+      data: null,
+    });
+  }
+};
+
+
+const updateAddress = async (req, res) => {
+  const user_id = req.user_id;      // From auth middleware
+  const addressId = req.params.id;  // Address ID from URL params
+
+  if (!user_id) {
+    return res.status(401).json({
+      message: 'Authentication failed',
+      data: null,
+    });
+  }
+
+  if (!addressId) {
+    return res.status(400).json({
+      message: 'Address ID is required',
+      data: null,
+    });
+  }
+
+  // Extract fields to update from req.body
+  const {
+    addressline1,
+    addressline2,
+    pincode,
+    city,
+    state,
+    country,
+    area,
+    deliveryInstructions,
+    latitude,
+    longitude,
+  } = req.body;
+
+  // Basic validation - you can extend this as needed
+  if (!addressline1 || !pincode || !state || !country) {
+    return res.status(400).json({
+      message: 'Missing required address fields: addressline1, pincode, state, country',
+      data: null,
+    });
+  }
+
+  // Prepare query and values
+  const query = `
+    UPDATE ${TABLES.USER_ADDRESS_TABLE}
+    SET 
+      addressline1 = ?, 
+      addressline2 = ?, 
+      pincode = ?, 
+      city = ?, 
+      state = ?, 
+      country = ?, 
+      area = ?, 
+      delivery_instructions = ?, 
+      latitude = ?, 
+      longitude = ?
+    WHERE id = ? AND user_id = ?
+  `;
+
+  const values = [
+    addressline1,
+    addressline2 || null,
+    pincode,
+    city || null,
+    state,
+    country,
+    area || null,
+    deliveryInstructions || null,
+    latitude || null,
+    longitude || null,
+    addressId,
+    user_id,
+  ];
+
+  try {
+    const [result] = await db.query(query, values);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: 'Address not found or not authorized to update',
+        data: null,
+      });
+    }
+
+    return res.status(200).json({
+      message: '✅ Address updated successfully',
+      data: {
+        id: addressId,
+        addressline1,
+        addressline2,
+        pincode,
+        city,
+        state,
+        country,
+        area,
+        deliveryInstructions,
+        latitude,
+        longitude,
+      },
+    });
+  } catch (err) {
+    console.error('DB Error:', err);
+    return res.status(500).json({
+      message: 'Database error',
+      data: null,
+    });
+  }
+};
+
+
+
 
 module.exports = {
   addAddress,
   getAddress,
-  getMyAddresses
+  getMyAddresses,
+  deleteAddress,
+  updateAddress
 };
