@@ -34,6 +34,8 @@ app.get('/', (req, res) => {
  app.use('/api/auth', require('./routes/authRoutes'));
  app.use('/api', require('./routes/addressRoutes'));
 
+ app.use('/api/restaurant', require('./routes/restaurantRoutes'));
+
 
 
 
