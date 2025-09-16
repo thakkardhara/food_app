@@ -2,79 +2,59 @@ const db = require('../db/db');
 const TABLES = require('../utils/tables');
 
 // Add new address
-const addAddress = (req, res) => {
-  const user_id = req.user_id;
+const addAddress = async (req, res) => {
+  try {
+    const user_id = req.user_id;
 
-  // Log the user ID to see if the auth middleware is working
-  console.log('User ID from middleware:', user_id);
-
-  if (!user_id) {
-    console.error('Authentication Error: user_id is missing from the request.');
-    return res.status(401).json({ message: 'Authentication failed. Please log in.' });
-  }
-
-  const {
-    addressline1,
-    addressline2,
-    pincode,
-    city,
-    state,
-    country,
-    area,
-    deliveryInstructions,
-    latitude,
-    longitude,
-  } = req.body;
-
-  if (!addressline1 || !pincode || !state || !country) {
-    console.warn('Missing required address fields');
-    return res.status(400).json({ message: 'Missing required address fields' });
-  }
-
-  const query = `
-    INSERT INTO ${TABLES.USER_ADDRESS_TABLE} (
-      user_id, 
-      addressline1, 
-      addressline2, 
-      pincode, 
-      city, 
-      state, 
-      country, 
-      area, 
-      delivery_instructions, 
-      latitude, 
-      longitude
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  const values = [
-    user_id,
-    addressline1,
-    addressline2 || null,
-    pincode,
-    city || null,
-    state,
-    country,
-    area || null,
-    deliveryInstructions || null,
-    latitude || null,
-    longitude || null,
-  ];
-
-  console.log("Executing DB query with values:", values);
-
-  db.query(query, values, (err, result) => {
-    if (err) {
-      // Log the full database error for debugging
-      console.error('DB Error:', err);
-      // Send a more detailed error message to the client
-      return res.status(500).json({ message: 'Database error', error: err.sqlMessage });
+    if (!user_id) {
+      return res.status(401).json({ message: 'Authentication failed. Please log in.' });
     }
-    console.log("Before sending response");
-  console.log("after sending response");
+
+    const {
+      addressline1,
+      addressline2,
+      pincode,
+      city,
+      state,
+      country,
+      area,
+      deliveryInstructions,
+      latitude,
+      longitude,
+    } = req.body;
+
+    if (!addressline1 || !pincode || !state || !country) {
+      return res.status(400).json({ message: 'Missing required address fields' });
+    }
+
+    const query = `
+      INSERT INTO ${TABLES.USER_ADDRESS_TABLE} (
+        user_id, addressline1, addressline2, pincode, city, state, country, area,
+        delivery_instructions, latitude, longitude
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const values = [
+      user_id,
+      addressline1,
+      addressline2 || null,
+      pincode,
+      city || null,
+      state,
+      country,
+      area || null,
+      deliveryInstructions || null,
+      latitude || null,
+      longitude || null,
+    ];
+
+    console.log("Executing DB query with values:", values);
+
+    const [result] = await db.query(query, values);
+
     return res.status(201).json({
-      message: '✅ Address added successfully',
+      message: 'Address added successfully',
       address_id: result.insertId,
       data: {
         addressline1,
@@ -89,10 +69,13 @@ const addAddress = (req, res) => {
         longitude,
       }
     });
-  });
-  res.status(201).json({ message: 'Address added successfully' , data: req.body });
 
+  } catch (err) {
+    console.error('DB Error:', err);
+    return res.status(500).json({ message: 'Database error', error: err.sqlMessage });
+  }
 };
+
 
 // Get all addresses or single address by ID
 const getAddress = async (req, res) => {
@@ -200,8 +183,8 @@ const deleteAddress = async (req, res) => {
 
 
 const updateAddress = async (req, res) => {
-  const user_id = req.user_id;      // From auth middleware
-  const addressId = req.params.id;  // Address ID from URL params
+  const user_id = req.user_id;      
+  const addressId = req.params.id; 
 
   if (!user_id) {
     return res.status(401).json({
