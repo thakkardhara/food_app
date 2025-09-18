@@ -191,13 +191,12 @@ async login(email, password) {
     if (!isPasswordValid) {
       throw new Error('Password is wrong');
     }
-
     // Check restaurant status
-    if (restaurant.status === 'pending_review') {
+    if (restaurant.status === 'pending') {
       throw new Error('Account pending approval');
     }
 
-    if (restaurant.status === 'disabled') {
+    if (restaurant.status === 'inactive') {
       throw new Error('Account disabled. Contact support');
     }
 

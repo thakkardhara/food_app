@@ -7,19 +7,19 @@ const { authenticateToken, activeRestaurantOnly } = require('../middlewares/auth
 router.use(authenticateToken);
 
 // 2.7 Get Full Menu (Public - doesn't require active status)
-router.get('/:restaurant_id', categoryController.getFullMenu);
+router.get('/:restaurant_id', categoryController.getFullMenu); // done 
 
 // Get categories list without items
-router.get('/:restaurant_id/categories', categoryController.getCategories);
+router.get('/:restaurant_id/categories', categoryController.getCategories);   // done
 
 // All modification routes require active restaurant status
 router.use(activeRestaurantOnly);
 
 // 2.1 Add Category
-router.post('/:restaurant_id/category', categoryController.addCategory);
+router.post('/:restaurant_id/category', categoryController.addCategory);   // done 
 
 // 2.2 Update Category
-router.patch('/:restaurant_id/category/:category_id', categoryController.updateCategory);
+router.patch('/:restaurant_id/category/:category_id', categoryController.updateCategory);  // done
 
 // 2.3 Delete Category
 router.delete('/:restaurant_id/category/:category_id', categoryController.deleteCategory);
@@ -28,16 +28,16 @@ router.delete('/:restaurant_id/category/:category_id', categoryController.delete
 router.get('/:restaurant_id/category/:category_id', categoryController.getCategoryWithItems);
 
 // 2.4 Add Item to Category
-router.post('/:restaurant_id/category/:category_id/item', categoryController.addItem);
+router.post('/:restaurant_id/category/:category_id/item', categoryController.addItem); // done 
 
 // 2.5 Update Item
-router.patch('/:restaurant_id/category/:category_id/item/:item_id', categoryController.updateItem);
+router.patch('/:restaurant_id/category/:category_id/item/:item_id', categoryController.updateItem); // done 
 
 // 2.6 Delete Item
-router.delete('/:restaurant_id/category/:category_id/item/:item_id', categoryController.deleteItem);
+router.delete('/:restaurant_id/category/:category_id/item/:item_id', categoryController.deleteItem); // done 
 
 // 2.8 Bulk Menu Update (Replace entire menu)
-router.put('/:restaurant_id', categoryController.bulkUpdateMenu);
+router.put('/:restaurant_id', categoryController.bulkUpdateMenu); // done 
 
 // Error handler for menu routes
 router.use((error, req, res, next) => {

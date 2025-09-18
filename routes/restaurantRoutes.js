@@ -11,6 +11,10 @@ router.post('/register/admin', restaurantController.registerByAdmin);
 router.post('/register', restaurantController.register);
 
 
+// get all restaurant 
+
+router.get('/getAllRestaurnt', restaurantController.allRestaurants)
+
 router.post('/login', restaurantController.login);
 
 

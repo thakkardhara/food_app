@@ -26,19 +26,30 @@ class CategoryRepository {
     }
   }
 
-  async findCategoryById(restaurantId, categoryId) {
-    const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?';
-    try {
-      const [rows] = await pool.execute(query, [restaurantId, categoryId]);
-      if (rows[0] && rows[0].items) {
-        rows[0].items = JSON.parse(rows[0].items);
+async findCategoryById(restaurantId, categoryId) {
+  const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?';
+  try {
+    const [rows] = await pool.execute(query, [restaurantId, categoryId]);
+    if (rows[0]) {
+      try {
+        if (typeof rows[0].items === 'string') {
+          rows[0].items = rows[0].items.trim() !== ""
+            ? JSON.parse(rows[0].items)
+            : []; 
+        } else if (rows[0].items === null || rows[0].items === undefined) {
+          rows[0].items = [];
+        }
+      } catch (parseError) {
+        console.error("Invalid JSON in items:", rows[0].items, parseError);
+        rows[0].items = []; 
       }
-      return rows[0] || null;
-    } catch (error) {
-      console.error('Error finding category by ID:', error);
-      throw new Error(`Database error: ${error.message}`);
     }
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Error finding category by ID:', error);
+    throw new Error(`Database error: ${error.message}`);
   }
+}
 
   async getNextDisplayOrder(restaurantId) {
     const query = 'SELECT MAX(display_order) as max_order FROM categories WHERE restaurant_id = ?';

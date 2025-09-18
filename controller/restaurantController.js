@@ -127,6 +127,16 @@ async login(req, res) {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
+  async allRestaurants(res,req){
+    const getAllRestaurant = await restaurantService.getAllRestaurants()
+
+    
+
 }
+}
+
+
+
+
 
 module.exports = new RestaurantController();
