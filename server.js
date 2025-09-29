@@ -36,6 +36,7 @@ app.get('/', (req, res) => {
 
  app.use('/api/restaurant', require('./routes/restaurantRoutes'));
  app.use('/api/restaurant/menu', require('./routes/categoryRoutes'));
+ app.use('/api/user/order', require('./routes/ordersRoutes'))
 
 
 
