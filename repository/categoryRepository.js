@@ -12,19 +12,30 @@ class CategoryRepository {
     }
   }
 
-  async findCategoryByName(restaurantId, name) {
-    const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND LOWER(name) = LOWER(?)';
-    try {
-      const [rows] = await pool.execute(query, [restaurantId, name]);
-      if (rows[0] && rows[0].items) {
-        rows[0].items = JSON.parse(rows[0].items);
+async findCategoryByName(restaurantId, name) {
+  const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND LOWER(name) = LOWER(?)';
+  try {
+    const [rows] = await pool.execute(query, [restaurantId, name]);
+
+    if (rows[0] && rows[0].items) {
+      // Parse only if it's a string
+      if (typeof rows[0].items === 'string') {
+        try {
+          rows[0].items = JSON.parse(rows[0].items);
+        } catch (err) {
+          console.warn('Invalid JSON in items column:', rows[0].items);
+          rows[0].items = [];
+        }
       }
-      return rows[0] || null;
-    } catch (error) {
-      console.error('Error finding category by name:', error);
-      throw new Error(`Database error: ${error.message}`);
     }
+
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Error finding category by name:', error);
+    throw new Error(`Database error: ${error.message}`);
   }
+}
+
 
 async findCategoryById(restaurantId, categoryId) {
   const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?';
