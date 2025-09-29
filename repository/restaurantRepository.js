@@ -115,16 +115,71 @@ class RestaurantRepository {
   }
 
   // Additional useful methods
-  async getAllRestaurants(limit = 50, offset = 0) {
-    const query = 'SELECT * FROM restaurants ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    try {
-      const [rows] = await pool.execute(query, [limit, offset]);
-      return rows;
-    } catch (error) {
-      console.error('Error getting all restaurants:', error);
-      throw new Error(`Database error: ${error.message}`);
-    }
+async getAllRestaurants() {
+  const query = 'SELECT * FROM restaurants ORDER BY created_at DESC';
+  try {
+    const [rows] = await pool.execute(query);
+    return rows;
+  } catch (error) {
+    console.error('Error getting all restaurants:', error);
+    throw new Error(`Database error: ${error.message}`);
   }
+}
+
+async getAllRestaurantsWithCategories() {
+  const restaurantQuery = 'SELECT * FROM restaurants ORDER BY created_at DESC';
+  const categoryQuery = 'SELECT * FROM categories WHERE restaurant_id = ? ORDER BY display_order ASC';
+
+  try {
+    const [restaurants] = await pool.execute(restaurantQuery);
+
+    for (let restaurant of restaurants) {
+      const [categories] = await pool.execute(categoryQuery, [restaurant.restaurant_id]);
+
+      for (let category of categories) {
+        // Safely parse the JSON items field
+        if (!category.items) {
+          category.items = [];
+        } else if (typeof category.items === 'string') {
+          try {
+            category.items = JSON.parse(category.items || '[]');
+          } catch (err) {
+            console.error('Error parsing items JSON for category:', category.category_id, err);
+            category.items = [];
+          }
+        } else if (!Array.isArray(category.items)) {
+          // If somehow stored as object, convert to array
+          category.items = Array.isArray(category.items) ? category.items : [];
+        }
+      }
+
+      restaurant.categories = categories;
+    }
+
+    return restaurants;
+
+  } catch (error) {
+    console.error('Error getting all restaurants with categories and items:', error);
+    throw new Error(`Database error: ${error.message}`);
+  }
+}
+
+
+
+
+
+async getItemsByCategoryId(categoryId) {
+  const query = 'SELECT * FROM items WHERE category_id = ? ORDER BY created_at DESC';
+  try {
+    const [rows] = await pool.execute(query, [categoryId]);
+    return rows;
+  } catch (error) {
+    console.error('Error getting items by category ID:', error);
+    throw new Error(`Database error: ${error.message}`);
+  }
+}
+
+
 
   async getRestaurantsByStatus(status, limit = 50, offset = 0) {
     const query = 'SELECT * FROM restaurants WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?';

@@ -13,7 +13,10 @@ router.post('/register', restaurantController.register);
 
 // get all restaurant 
 
-router.get('/getAllRestaurnt', restaurantController.allRestaurants)
+// router.get('/getAllRestaurnt', restaurantController.allRestaurants)
+router.get('/getAllRestaurant',restaurantController.allRestaurants);
+// router.get('/getAllRestaurant/:restaurantId', restaurantController.getRestaurantById);
+
 
 router.post('/login', restaurantController.login);
 

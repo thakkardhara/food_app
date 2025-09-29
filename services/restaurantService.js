@@ -248,6 +248,44 @@ async login(email, password) {
     }
   }
 
+async getAllRestaurants() {
+  try {
+    const restaurants = await restaurantRepository.getAllRestaurants();
+    return restaurants;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+// async getAllRestaurants() {
+//   try {
+//     const restaurants = await restaurantRepository.getAllRestaurants();
+
+//     const restaurantsWithCategories = await Promise.all(
+//       restaurants.map(async (restaurant) => {
+//         const categories = await restaurantRepository.getCategoriesByRestaurantId(restaurant.restaurant_id);
+//         return {
+//           ...restaurant,
+//           categories: categories || []
+//         };
+//       })
+//     );
+
+//     return restaurantsWithCategories;
+//   } catch (error) {
+//     throw new Error(error.message);
+//   }
+// }
+async getAllRestaurants() {
+  try {
+    const restaurants = await restaurantRepository.getAllRestaurantsWithCategories();
+    return restaurants;
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+
   async getRestaurantByToken(restaurantId) {
     try {
       const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
