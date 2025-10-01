@@ -3,12 +3,43 @@ const router = express.Router();
 const restaurantController = require('../controller/restaurantController');
 const { authenticateToken, activeRestaurantOnly } = require('../middlewares/authMiddleware');
 
+const { upload, handleUploadError } = require('../configs/multerConfig');
+
+router.post('/register/admin', 
+  upload.single('profile_image'), 
+  handleUploadError,
+  restaurantController.registerByAdmin
+);
 
 
-router.post('/register/admin', restaurantController.registerByAdmin);
+router.post('/register', 
+  upload.single('profile_image'), 
+  handleUploadError,
+  restaurantController.register
+);
+// Profile image management routes
+router.post('/profile-image', 
+  authenticateToken,
+  activeRestaurantOnly,
+  upload.single('profile_image'),
+  handleUploadError,
+  restaurantController.updateProfileImage
+);
 
+router.delete('/profile-image',
+  authenticateToken,
+  activeRestaurantOnly,
+  restaurantController.deleteProfileImage
+);
 
-router.post('/register', restaurantController.register);
+// Update profile with optional image
+router.patch('/profile',
+  authenticateToken,
+  activeRestaurantOnly,
+  upload.single('profile_image'),
+  handleUploadError,
+  restaurantController.updateProfile
+);
 
 
 // get all restaurant 

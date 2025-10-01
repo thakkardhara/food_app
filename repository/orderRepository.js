@@ -59,19 +59,28 @@ class OrderRepository {
     }
   }
 
-  async findOrderById(orderId) {
-    const query = 'SELECT * FROM orders WHERE order_id = ?';
-    try {
-      const [rows] = await pool.execute(query, [orderId]);
-      if (rows[0] && rows[0].items) {
-        rows[0].items = JSON.parse(rows[0].items);
+async findOrderById(orderId) {
+  const query = 'SELECT * FROM orders WHERE order_id = ?';
+  try {
+    const [rows] = await pool.execute(query, [orderId]);
+
+    if (rows[0] && rows[0].items) {
+      if (typeof rows[0].items === "string") {
+        try {
+          rows[0].items = JSON.parse(rows[0].items);
+        } catch (err) {
+          console.error("Failed to parse items JSON:", err);
+        }
       }
-      return rows[0] || null;
-    } catch (error) {
-      console.error('Error finding order:', error);
-      throw new Error(`Database error: ${error.message}`);
     }
+
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Error finding order:', error);
+    throw new Error(`Database error: ${error.message}`);
   }
+}
+
 
   async updateOrderStatus(orderId, status) {
     const query = `

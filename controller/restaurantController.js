@@ -1,43 +1,60 @@
 const restaurantService = require("../services/restaurantService");
+const { deleteFile } = require('../configs/multerConfig');
 
 class RestaurantController {
   async registerByAdmin(req, res) {
     try {
-      const result = await restaurantService.registerRestaurantByAdmin(
-        req.body
-      );
+      // Prepare restaurant data with image file if uploaded
+      const restaurantData = {
+        ...req.body,
+        profile_image: req.file ? req.file.path.replace(/\\/g, '/') : null
+      };
+
+      const result = await restaurantService.registerRestaurantByAdmin(restaurantData);
       res.status(201).json(result);
     } catch (error) {
-      console.error("Admin registration error:", error.message);
-
-      if (
-        error.message.includes("already exists") ||
-        error.message.includes("Invalid") ||
-        error.message.includes("required")
-      ) {
+      console.error('Admin registration error:', error.message);
+      
+      // Clean up uploaded file on error
+      if (req.file) {
+        await deleteFile(req.file.path);
+      }
+      
+      if (error.message.includes('already exists') || 
+          error.message.includes('Invalid') || 
+          error.message.includes('required')) {
         return res.status(400).json({ error: error.message });
       }
-
-      res.status(500).json({ error: "Internal server error" });
+      
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  async register(req, res) {
+async register(req, res) {
     try {
-      const result = await restaurantService.registerRestaurant(req.body);
+      // Prepare restaurant data with image file if uploaded
+      const restaurantData = {
+        ...req.body,
+        profile_image: req.file ? req.file.path.replace(/\\/g, '/') : null
+      };
+
+      const result = await restaurantService.registerRestaurant(restaurantData);
       res.status(201).json(result);
     } catch (error) {
-      console.error("Self registration error:", error.message);
-
-      if (
-        error.message.includes("already exists") ||
-        error.message.includes("Invalid") ||
-        error.message.includes("required")
-      ) {
+      console.error('Self registration error:', error.message);
+      
+      // Clean up uploaded file on error
+      if (req.file) {
+        await deleteFile(req.file.path);
+      }
+      
+      if (error.message.includes('already exists') || 
+          error.message.includes('Invalid') || 
+          error.message.includes('required')) {
         return res.status(400).json({ error: error.message });
       }
-
-      res.status(500).json({ error: "Internal server error" });
+      
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 
@@ -113,40 +130,39 @@ class RestaurantController {
   }
 
   // Optional: Get restaurant profile (protected route)
-  async getProfile(req, res) {
+async getProfile(req, res) {
     try {
-      const { restaurant_id } = req.restaurant; // From auth middleware
-      const restaurant = await restaurantService.getRestaurantByToken(
-        restaurant_id
-      );
-
-      // Remove sensitive data
+      const { restaurant_id } = req.restaurant;
+      const restaurant = await restaurantService.getRestaurantByToken(restaurant_id);
+      
       const { password, ...restaurantProfile } = restaurant;
-
+      
       res.status(200).json({
-        message: "Profile retrieved successfully",
+        message: 'Profile retrieved successfully',
         restaurant: {
           ...restaurantProfile,
-          cuisine:
-            typeof restaurantProfile.cuisine === "string"
-              ? JSON.parse(restaurantProfile.cuisine)
-              : restaurantProfile.cuisine,
-          menu:
-            typeof restaurantProfile.menu === "string"
-              ? JSON.parse(restaurantProfile.menu)
-              : restaurantProfile.menu,
-        },
+          cuisine: typeof restaurantProfile.cuisine === 'string' 
+            ? JSON.parse(restaurantProfile.cuisine) 
+            : restaurantProfile.cuisine,
+          menu: typeof restaurantProfile.menu === 'string' 
+            ? JSON.parse(restaurantProfile.menu) 
+            : restaurantProfile.menu,
+          profile_image: restaurantProfile.profile_image 
+            ? `/${restaurantProfile.profile_image}` 
+            : '/uploads/defaults/restaurant-default.png'
+        }
       });
     } catch (error) {
-      console.error("Get profile error:", error.message);
-
-      if (error.message === "Restaurant not found") {
-        return res.status(404).json({ error: "Restaurant not found" });
+      console.error('Get profile error:', error.message);
+      
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: 'Restaurant not found' });
       }
-
-      res.status(500).json({ error: "Internal server error" });
+      
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
+
 
   // async allRestaurants(res, req) {
   //   const getAllRestaurant = await restaurantService.getAllRestaurants();
@@ -164,6 +180,89 @@ async allRestaurants(req, res) {
   }
 }
 
+  async updateProfileImage(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+      }
+      
+      const result = await restaurantService.updateProfileImage(
+        restaurant_id, 
+        req.file
+      );
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Update profile image error:', error.message);
+      
+      if (req.file) {
+        await deleteFile(req.file.path);
+      }
+      
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Delete profile image
+  async deleteProfileImage(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      
+      const result = await restaurantService.deleteProfileImage(restaurant_id);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Delete profile image error:', error.message);
+      
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Update profile fields
+  async updateProfile(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      const updateData = req.body;
+      
+      // Handle image separately if included
+      if (req.file) {
+        updateData.profile_image = req.file.path.replace(/\\/g, '/');
+      }
+      
+      const result = await restaurantService.updateRestaurantProfile(
+        restaurant_id,
+        updateData
+      );
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Update profile error:', error.message);
+      
+      if (req.file) {
+        await deleteFile(req.file.path);
+      }
+      
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      if (error.message.includes('Invalid') || 
+          error.message.includes('already exists')) {
+        return res.status(400).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
 
 
 

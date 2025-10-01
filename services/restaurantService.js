@@ -1,7 +1,7 @@
 const restaurantRepository = require('../repository/restaurantRepository');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-
+const { deleteFile } = require('../configs/multerConfig');
 class RestaurantService {
   generateRestaurantId() {
     const timestamp = Date.now().toString().slice(-6);
@@ -44,9 +44,9 @@ class RestaurantService {
            location.longitude >= -180 && location.longitude <= 180;
   }
 
-  async registerRestaurantByAdmin(restaurantData) {
+async registerRestaurantByAdmin(restaurantData) {
     try {
-      const { name, email, phone, location, cuisine, menu, password } = restaurantData;
+      const { name, email, phone, location, cuisine, menu, password, profile_image } = restaurantData;
 
       // Validation
       if (!name || !email || !phone || !password) {
@@ -78,6 +78,9 @@ class RestaurantService {
       // Generate restaurant ID
       const restaurant_id = this.generateRestaurantId();
 
+      // Set profile image or use default
+      const finalProfileImage = profile_image || getDefaultImage();
+
       // Prepare data for storage
       const dataToStore = {
         restaurant_id,
@@ -89,6 +92,7 @@ class RestaurantService {
         longitude: location?.longitude || null,
         cuisine: cuisine || [],
         menu: menu || [],
+        profile_image: finalProfileImage,
         status: 'active',
         created_by: 'admin'
       };
@@ -99,6 +103,7 @@ class RestaurantService {
         restaurant_id,
         status: 'active',
         message: 'Restaurant registered successfully',
+        profile_image: `/${finalProfileImage}`,
         Email: email,
         Pass: password
       };
@@ -110,7 +115,7 @@ class RestaurantService {
 
   async registerRestaurant(restaurantData) {
     try {
-      const { name, email, phone, location, cuisine, menu, password } = restaurantData;
+      const { name, email, phone, location, cuisine, menu, password, profile_image } = restaurantData;
 
       // Validation
       if (!name || !email || !phone || !password) {
@@ -129,9 +134,17 @@ class RestaurantService {
         throw new Error('Password must be at least 6 characters');
       }
 
-      if (location && !this.validateLocation(location)) {
-        throw new Error('Invalid location coordinates');
+      let parsedLocation = location;
+    if (typeof location === "string") {
+      try {
+        parsedLocation = JSON.parse(location);
+      } catch {
+        throw new Error("Invalid location format");
       }
+    }
+    if (parsedLocation && !this.validateLocation(parsedLocation)) {
+      throw new Error("Invalid location coordinates");
+    }
 
       // Check if email already exists
       const existingRestaurant = await restaurantRepository.findByEmail(email);
@@ -141,6 +154,9 @@ class RestaurantService {
 
       // Generate restaurant ID
       const restaurant_id = this.generateRestaurantId();
+
+      // Set profile image or use default
+      const finalProfileImage = profile_image || getDefaultImage();
 
       // Prepare data for storage
       const dataToStore = {
@@ -153,6 +169,7 @@ class RestaurantService {
         longitude: location?.longitude || null,
         cuisine: cuisine || [],
         menu: menu || [],
+        profile_image: finalProfileImage,
         status: 'pending',
         created_by: 'self'
       };
@@ -162,7 +179,8 @@ class RestaurantService {
       return {
         restaurant_id,
         status: 'pending_review',
-        message: 'Registration submitted. Waiting for admin approval.'
+        message: 'Registration submitted. Waiting for admin approval.',
+        profile_image: `/${finalProfileImage}`
       };
 
     } catch (error) {
@@ -170,49 +188,52 @@ class RestaurantService {
     }
   }
 
+
 async login(email, password) {
-  try {
-    if (!email || !password) {
-      throw new Error('Email and password are required');
+    try {
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+
+      if (!this.validateEmail(email)) {
+        throw new Error('Invalid email format');
+      }
+
+      // Find restaurant by email
+      const restaurant = await restaurantRepository.findByEmail(email);
+      if (!restaurant) {
+        throw new Error('Email not found');
+      }
+
+      // Verify password
+      const isPasswordValid = await restaurantRepository.verifyPassword(password, restaurant.password);
+      if (!isPasswordValid) {
+        throw new Error('Password is wrong');
+      }
+
+      // Check restaurant status
+      if (restaurant.status === 'pending_review' || restaurant.status === 'pending') {
+        throw new Error('Account pending approval');
+      }
+
+      if (restaurant.status === 'disabled' || restaurant.status === 'inactive') {
+        throw new Error('Account disabled. Contact support');
+      }
+
+      // Generate JWT token
+      const token = this.generateJWTToken(restaurant);
+
+      return {
+        restaurant_id: restaurant.restaurant_id,
+        token,
+        message: 'Login successful',
+        profile_image: restaurant.profile_image ? `/${restaurant.profile_image}` : '/uploads/defaults/restaurant-default.png'
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
     }
-
-    if (!this.validateEmail(email)) {
-      throw new Error('Invalid email format');
-    }
-
-    // Find restaurant by email
-    const restaurant = await restaurantRepository.findByEmail(email);
-    if (!restaurant) {
-      throw new Error('Email not found');
-    }
-
-    // Verify password (only check if email exists)
-    const isPasswordValid = await restaurantRepository.verifyPassword(password, restaurant.password);
-    if (!isPasswordValid) {
-      throw new Error('Password is wrong');
-    }
-    // Check restaurant status
-    if (restaurant.status === 'pending') {
-      throw new Error('Account pending approval');
-    }
-
-    if (restaurant.status === 'inactive') {
-      throw new Error('Account disabled. Contact support');
-    }
-
-    // Generate JWT token
-    const token = this.generateJWTToken(restaurant);
-
-    return {
-      restaurant_id: restaurant.restaurant_id,
-      token,
-      message: 'Login successful'
-    };
-
-  } catch (error) {
-    throw new Error(error.message);
   }
-}
 
   async changePassword(email, oldPassword, newPassword) {
     try {
@@ -293,6 +314,140 @@ async getAllRestaurants() {
         throw new Error('Restaurant not found');
       }
       return restaurant;
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+
+
+
+  async updateProfileImage(restaurantId, file) {
+    try {
+      // Check if restaurant exists
+      const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      // Delete old image if exists (and not default)
+      if (restaurant.profile_image && !restaurant.profile_image.includes('default')) {
+        await deleteFile(restaurant.profile_image);
+      }
+
+      // Store new image path
+      const imagePath = file.path.replace(/\\/g, '/');
+      
+      await restaurantRepository.updateProfileImage(restaurantId, imagePath);
+
+      return {
+        message: 'Profile image updated successfully',
+        image_url: `/${imagePath}`
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async deleteProfileImage(restaurantId) {
+    try {
+      // Check if restaurant exists
+      const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      // Delete current image if exists and not default
+      if (restaurant.profile_image && !restaurant.profile_image.includes('default')) {
+        await deleteFile(restaurant.profile_image);
+      }
+
+      // Set to default image
+      const defaultImage = getDefaultImage();
+      await restaurantRepository.updateProfileImage(restaurantId, defaultImage);
+
+      return {
+        message: 'Profile image reset to default',
+        image_url: `/${defaultImage}`
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async updateRestaurantProfile(restaurantId, updateData) {
+    try {
+      // Check if restaurant exists
+      const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      // If there's an old image and a new one is being uploaded
+      if (updateData.profile_image && restaurant.profile_image && !restaurant.profile_image.includes('default')) {
+        await deleteFile(restaurant.profile_image);
+      }
+
+      const allowedUpdates = {};
+      
+      // Validate and prepare updates
+      if (updateData.name) {
+        allowedUpdates.name = updateData.name.trim();
+      }
+
+      if (updateData.phone) {
+        if (!this.validatePhone(updateData.phone)) {
+          throw new Error('Phone must be 10 digits');
+        }
+        allowedUpdates.phone = updateData.phone;
+      }
+
+      if (updateData.email) {
+        if (!this.validateEmail(updateData.email)) {
+          throw new Error('Invalid email format');
+        }
+        
+        const existingRestaurant = await restaurantRepository.findByEmail(updateData.email);
+        if (existingRestaurant && existingRestaurant.restaurant_id !== restaurantId) {
+          throw new Error('Email already exists');
+        }
+        
+        allowedUpdates.email = updateData.email;
+      }
+
+      if (updateData.location) {
+        if (!this.validateLocation(updateData.location)) {
+          throw new Error('Invalid location coordinates');
+        }
+        allowedUpdates.latitude = updateData.location.latitude;
+        allowedUpdates.longitude = updateData.location.longitude;
+      }
+
+      if (updateData.cuisine) {
+        allowedUpdates.cuisine = updateData.cuisine;
+      }
+
+      if (updateData.profile_image) {
+        allowedUpdates.profile_image = updateData.profile_image;
+      }
+
+      if (updateData.address) {
+        allowedUpdates.address = updateData.address;
+      }
+
+      if (updateData.description) {
+        allowedUpdates.description = updateData.description;
+      }
+
+      await restaurantRepository.updateProfile(restaurantId, allowedUpdates);
+
+      return {
+        message: 'Profile updated successfully',
+        updated_fields: Object.keys(allowedUpdates)
+      };
+
     } catch (error) {
       throw new Error(error.message);
     }

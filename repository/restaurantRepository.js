@@ -24,7 +24,7 @@ class RestaurantRepository {
     }
   }
 
-  async create(restaurantData) {
+async create(restaurantData) {
     const {
       restaurant_id,
       name,
@@ -35,14 +35,15 @@ class RestaurantRepository {
       longitude,
       cuisine,
       menu,
+      profile_image,
       status,
       created_by
     } = restaurantData;
 
     const query = `
       INSERT INTO restaurants 
-      (restaurant_id, name, email, phone, password, latitude, longitude, cuisine, menu, status, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (restaurant_id, name, email, phone, password, latitude, longitude, cuisine, menu, profile_image, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     try {
@@ -60,6 +61,7 @@ class RestaurantRepository {
         longitude,
         JSON.stringify(cuisine),
         JSON.stringify(menu),
+        profile_image,
         status,
         created_by
       ]);
@@ -79,6 +81,58 @@ class RestaurantRepository {
       throw new Error(`Database error: ${error.message}`);
     }
   }
+   async updateProfileImage(restaurantId, imagePath) {
+    const query = `
+      UPDATE restaurants 
+      SET profile_image = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE restaurant_id = ?
+    `;
+    
+    try {
+      const [result] = await pool.execute(query, [imagePath, restaurantId]);
+      return result;
+    } catch (error) {
+      console.error('Error updating profile image:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  async updateProfile(restaurantId, updateData) {
+    const updates = [];
+    const values = [];
+
+    // Build dynamic update query
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined) {
+        updates.push(`${key} = ?`);
+        
+        // Handle JSON fields
+        if (key === 'cuisine' || key === 'menu') {
+          values.push(JSON.stringify(updateData[key]));
+        } else {
+          values.push(updateData[key]);
+        }
+      }
+    });
+
+    if (updates.length === 0) {
+      throw new Error('No valid fields to update');
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(restaurantId);
+
+    const query = `UPDATE restaurants SET ${updates.join(', ')} WHERE restaurant_id = ?`;
+
+    try {
+      const [result] = await pool.execute(query, values);
+      return result;
+    } catch (error) {
+      console.error('Error updating restaurant details:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
 
   async updatePassword(email, newPassword) {
     const query = 'UPDATE restaurants SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE email = ?';
