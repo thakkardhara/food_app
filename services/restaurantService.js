@@ -297,14 +297,14 @@ async getAllRestaurants() {
 //     throw new Error(error.message);
 //   }
 // }
-async getAllRestaurants() {
-  try {
-    const restaurants = await restaurantRepository.getAllRestaurantsWithCategories();
-    return restaurants;
-  } catch (error) {
-    throw new Error(error.message);
-  }
-}
+// async getAllRestaurants() {
+//   try {
+//     const restaurants = await restaurantRepository.getAllRestaurantsWithCategories();
+//     return restaurants;
+//   } catch (error) {
+//     throw new Error(error.message);
+//   }
+// }
 
 
   async getRestaurantByToken(restaurantId) {

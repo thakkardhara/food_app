@@ -3,43 +3,54 @@ const router = express.Router();
 const orderController = require('../controller/orderController');
 const { authenticateToken, activeRestaurantOnly } = require('../middlewares/authMiddleware');
 
-// Public endpoints (user endpoints - might need different auth)
-// 1. Place Order
+/* ============================
+   USER ENDPOINTS (Public/User)
+   ============================ */
+
+// 1. Place Order (user places order)
 router.post('/add', orderController.placeOrder);
 
-// 2. Get Order by ID
+// 2. Get Order by ID (user checks single order)
 router.get('/:order_id', orderController.getOrderById);
 
-// 4. Get Orders by User
+// 3. Get Orders by User (user sees all their orders)
 router.get('/user/:user_id', orderController.getOrdersByUser);
 
-// Protected endpoints (restaurant management)
-// 3. Update Order Status
-router.patch('/:order_id/status', authenticateToken, orderController.updateOrderStatus);
 
-// Restaurant specific endpoints
-router.use(authenticateToken); // All routes below require authentication
+/* ===============================
+   RESTAURANT ENDPOINTS (Restricted)
+   =============================== */
 
-// 5. Get Orders by Restaurant
-router.get('/restaurant/:restaurant_id', activeRestaurantOnly, orderController.getOrdersByRestaurant);
+// Require authentication for all restaurant routes
+router.use(authenticateToken);
 
-// 6. Cancel Order
+// 4. Update Order Status (restaurant only)
+router.patch('/:order_id/status', orderController.updateOrderStatus);
+
+// 5. Get Orders by Restaurant (no param, use token restaurant_id)
+router.get('/restaurant/orders', activeRestaurantOnly, orderController.getOrdersByRestaurant);
+
+
+// 6. Cancel Order (restaurant can cancel)
 router.post('/:order_id/cancel', orderController.cancelOrder);
 
-// 7. Get Order Statistics
+// 7. Get Order Statistics (restaurant analytics)
 router.get('/restaurant/:restaurant_id/stats', activeRestaurantOnly, orderController.getOrderStats);
 
-// 8. Get Active Orders (for real-time tracking)
+// 8. Get Active Orders (real-time tracking for restaurant)
 router.get('/restaurant/:restaurant_id/active', activeRestaurantOnly, orderController.getActiveOrders);
 
-// Error handler for order routes
+
+/* ===============================
+   ERROR HANDLER
+   =============================== */
 router.use((error, req, res, next) => {
   console.error('Order route error:', error);
-  
+
   if (error.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON in request body' });
   }
-  
+
   res.status(500).json({ error: 'Internal server error' });
 });
 

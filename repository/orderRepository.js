@@ -130,90 +130,119 @@ async findOrderById(orderId) {
     }
   }
 
-  async findOrdersByUser(userId, filters = {}) {
-    let query = `
-      SELECT o.*, r.name as restaurant_name 
-      FROM orders o
-      JOIN restaurants r ON o.restaurant_id = r.restaurant_id
-      WHERE o.user_id = ?
-    `;
-    
-    const params = [userId];
-    
-    if (filters.status) {
-      query += ' AND o.status = ?';
-      params.push(filters.status);
-    }
-    
-    query += ' ORDER BY o.created_at DESC';
-    
-    if (filters.limit) {
-      query += ' LIMIT ?';
-      params.push(filters.limit);
-    }
-    
-    if (filters.offset) {
-      query += ' OFFSET ?';
-      params.push(filters.offset);
-    }
-    
-    try {
-      const [rows] = await pool.execute(query, params);
-      
-      // Parse JSON items for each order
-      return rows.map(row => ({
-        ...row,
-        items: row.items ? JSON.parse(row.items) : []
-      }));
-    } catch (error) {
-      console.error('Error finding user orders:', error);
-      throw new Error(`Database error: ${error.message}`);
+async findOrdersByUser(userId, filters = {}) {
+  let query = `
+    SELECT o.*, r.name as restaurant_name 
+    FROM orders o
+    JOIN restaurants r ON o.restaurant_id = r.restaurant_id
+    WHERE o.user_id = ?
+  `;
+  
+  const params = [userId];
+  
+  if (filters.status) {
+    query += ' AND o.status = ?';
+    params.push(filters.status);
+  }
+  
+  query += ' ORDER BY o.created_at DESC';
+  
+  // ✅ safer handling for LIMIT/OFFSET
+  if (filters.limit) {
+    const limit = parseInt(filters.limit, 10);
+    if (!isNaN(limit)) {
+      query += ` LIMIT ${limit}`;
     }
   }
 
-  async findOrdersByRestaurant(restaurantId, filters = {}) {
-    let query = `
-      SELECT * FROM orders 
-      WHERE restaurant_id = ?
-    `;
-    
-    const params = [restaurantId];
-    
-    if (filters.status) {
-      query += ' AND status = ?';
-      params.push(filters.status);
-    }
-    
-    if (filters.date) {
-      query += ' AND DATE(created_at) = DATE(?)';
-      params.push(filters.date);
-    }
-    
-    query += ' ORDER BY created_at DESC';
-    
-    if (filters.limit) {
-      query += ' LIMIT ?';
-      params.push(filters.limit);
-    }
-    
-    if (filters.offset) {
-      query += ' OFFSET ?';
-      params.push(filters.offset);
-    }
-    
-    try {
-      const [rows] = await pool.execute(query, params);
-      
-      // Parse JSON items for each order
-      return rows.map(row => ({
-        ...row,
-        items: row.items ? JSON.parse(row.items) : []
-      }));
-    } catch (error) {
-      console.error('Error finding restaurant orders:', error);
-      throw new Error(`Database error: ${error.message}`);
+  if (filters.offset) {
+    const offset = parseInt(filters.offset, 10);
+    if (!isNaN(offset)) {
+      query += ` OFFSET ${offset}`;
     }
   }
+  
+  try {
+    const [rows] = await pool.execute(query, params);
+    
+  return rows.map(row => {
+  let items = [];
+
+  if (row.items) {
+    if (typeof row.items === 'string') {
+      try {
+        items = JSON.parse(row.items);
+      } catch (err) {
+        console.error('Failed to parse items JSON:', row.items, err);
+        items = [];
+      }
+    } else if (typeof row.items === 'object') {
+      items = row.items; // already parsed by MySQL
+    }
+  }
+
+  return {
+    ...row,
+    items
+  };
+});
+
+  } catch (error) {
+    console.error('Error finding user orders:', error);
+    throw new Error(`Database error: ${error.message}`);
+  }
+}
+
+
+
+async findOrdersByRestaurant(restaurantId, filters = {}) {
+  let query = `
+    SELECT * FROM orders 
+    WHERE restaurant_id = ?
+  `;
+  
+  const params = [restaurantId];
+  
+  if (filters.status) {
+    query += ' AND status = ?';
+    params.push(filters.status);
+  }
+  
+  if (filters.date) {
+    query += ' AND DATE(created_at) = DATE(?)';
+    params.push(filters.date);
+  }
+  
+  query += ' ORDER BY created_at DESC';
+  
+  if (filters.limit) {
+    query += ` LIMIT ${parseInt(filters.limit, 10)}`;
+  }
+  
+  if (filters.offset) {
+    query += ` OFFSET ${parseInt(filters.offset, 10)}`;
+  }
+  
+  try {
+    const [rows] = await pool.execute(query, params);
+    
+    return rows.map(row => {
+      let items = [];
+      if (row.items) {
+        if (typeof row.items === 'string') {
+          try { items = JSON.parse(row.items); } catch { items = []; }
+        } else if (typeof row.items === 'object') {
+          items = row.items;
+        }
+      }
+      return { ...row, items };
+    });
+  } catch (error) {
+    console.error('Error finding restaurant orders:', error);
+    throw new Error(`Database error: ${error.message}`);
+  }
+}
+
 
   async findActiveOrders(restaurantId, activeStatuses) {
     const placeholders = activeStatuses.map(() => '?').join(', ');

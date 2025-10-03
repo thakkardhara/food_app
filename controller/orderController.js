@@ -128,30 +128,31 @@ class OrderController {
   }
 
   // 5. Get Orders by Restaurant (Additional - for restaurant dashboard)
-  async getOrdersByRestaurant(req, res) {
-    try {
-      const { restaurant_id } = req.params;
-      const { status, date, limit, offset } = req.query;
-      
-      // Verify restaurant ownership
-      if (req.restaurant && req.restaurant.restaurant_id !== restaurant_id) {
-        return res.status(403).json({ error: 'Unauthorized access to this restaurant orders' });
-      }
-      
-      const orders = await orderService.getOrdersByRestaurant(restaurant_id, {
-        status,
-        date,
-        limit: parseInt(limit) || 50,
-        offset: parseInt(offset) || 0
-      });
-      
-      res.status(200).json(orders);
-      
-    } catch (error) {
-      console.error('Get restaurant orders error:', error.message);
-      res.status(500).json({ error: 'Internal server error' });
+  // controller/orderController.js
+async getOrdersByRestaurant(req, res) {
+  try {
+    const restaurantId = req.user.restaurant_id || (req.restaurant && req.restaurant.restaurant_id);
+    const { status, date, limit, offset } = req.query;
+
+    if (!restaurantId) {
+      return res.status(403).json({ error: 'Restaurant ID missing in token' });
     }
+
+    const orders = await orderService.getOrdersByRestaurant(restaurantId, {
+      status,
+      date,
+      limit: parseInt(limit, 10) || 50,
+      offset: parseInt(offset, 10) || 0
+    });
+
+    res.status(200).json(orders);
+
+  } catch (error) {
+    console.error('Get restaurant orders error:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
+}
+
 
   // 6. Cancel Order
   async cancelOrder(req, res) {

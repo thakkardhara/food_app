@@ -31,12 +31,12 @@ app.get('/', (req, res) => {
   res.send('api working!');
 });
 
- app.use('/api/auth', require('./routes/authRoutes'));
- app.use('/api', require('./routes/addressRoutes'));
-
- app.use('/api/restaurant', require('./routes/restaurantRoutes'));
- app.use('/api/restaurant/menu', require('./routes/categoryRoutes'));
- app.use('/api/user/order', require('./routes/ordersRoutes'))
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api', require('./routes/addressRoutes'));
+app.use('/api/restaurant', require('./routes/restaurantRoutes'));
+app.use('/api/restaurant/menu', require('./routes/categoryRoutes'));
+app.use('/api/user/order', require('./routes/ordersRoutes'))
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 
 

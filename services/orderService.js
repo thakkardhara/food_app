@@ -227,23 +227,22 @@ class OrderService {
     }
   }
 
-  async getOrdersByRestaurant(restaurantId, filters = {}) {
-    try {
-      const { status, date, limit, offset } = filters;
-      
-      const orders = await orderRepository.findOrdersByRestaurant(restaurantId, {
-        status,
-        date,
-        limit: limit || 50,
-        offset: offset || 0
-      });
+async getOrdersByRestaurant(restaurantId, filters = {}) {
+  try {
+    const { status, date, limit, offset } = filters;
+    
+    return await orderRepository.findOrdersByRestaurant(restaurantId, {
+      status,
+      date,
+      limit: limit || 50,
+      offset: offset || 0
+    });
 
-      return orders;
-
-    } catch (error) {
-      throw new Error(error.message);
-    }
+  } catch (error) {
+    throw new Error(error.message);
   }
+}
+
 
   async cancelOrder(orderId, reason = null) {
     try {
