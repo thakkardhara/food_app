@@ -3,16 +3,18 @@ const router = express.Router();
 const categoryController = require('../controller/categoryController');
 const { authenticateToken, activeRestaurantOnly } = require('../middlewares/authMiddleware');
 
-// All menu routes require authentication
-router.use(authenticateToken);
 
-// 2.7 Get Full Menu (Public - doesn't require active status)
-router.get('/:restaurant_id', categoryController.getFullMenu); // done 
+// Public route (no token, no activeRestaurantOnly)
+router.get('/:restaurant_id', categoryController.getFullMenu); // Public route
+
+
+//Routes below this require authentication
+router.use(authenticateToken);
 
 // Get categories list without items
 router.get('/:restaurant_id/categories', categoryController.getCategories);   // done
 
-// All modification routes require active restaurant status
+//  Routes below this require active restaurant
 router.use(activeRestaurantOnly);
 
 // 2.1 Add Category

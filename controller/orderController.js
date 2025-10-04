@@ -131,7 +131,9 @@ class OrderController {
   // controller/orderController.js
 async getOrdersByRestaurant(req, res) {
   try {
-    const restaurantId = req.user.restaurant_id || (req.restaurant && req.restaurant.restaurant_id);
+    console.log("Restaurant from token:", req.restaurant);
+
+    const restaurantId = req.restaurant?.restaurant_id;
     const { status, date, limit, offset } = req.query;
 
     if (!restaurantId) {
@@ -152,6 +154,7 @@ async getOrdersByRestaurant(req, res) {
     res.status(500).json({ error: 'Internal server error' });
   }
 }
+
 
 
   // 6. Cancel Order

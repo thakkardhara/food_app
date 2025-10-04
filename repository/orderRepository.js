@@ -244,36 +244,55 @@ async findOrdersByRestaurant(restaurantId, filters = {}) {
 }
 
 
-  async findActiveOrders(restaurantId, activeStatuses) {
-    const placeholders = activeStatuses.map(() => '?').join(', ');
-    const query = `
-      SELECT * FROM orders 
-      WHERE restaurant_id = ? 
-      AND status IN (${placeholders})
-      ORDER BY 
-        CASE status
-          WHEN 'out_for_delivery' THEN 1
-          WHEN 'prepared' THEN 2
-          WHEN 'confirmed' THEN 3
-          WHEN 'pending' THEN 4
-          ELSE 5
-        END,
-        created_at ASC
-    `;
-    
-    try {
-      const [rows] = await pool.execute(query, [restaurantId, ...activeStatuses]);
-      
-      // Parse JSON items for each order
-      return rows.map(row => ({
+async findActiveOrders(restaurantId, activeStatuses) {
+  const placeholders = activeStatuses.map(() => '?').join(', ');
+  const query = `
+    SELECT * FROM orders 
+    WHERE restaurant_id = ? 
+    AND status IN (${placeholders})
+    ORDER BY 
+      CASE status
+        WHEN 'out_for_delivery' THEN 1
+        WHEN 'prepared' THEN 2
+        WHEN 'confirmed' THEN 3
+        WHEN 'pending' THEN 4
+        ELSE 5
+      END,
+      created_at ASC
+  `;
+  
+  try {
+    const [rows] = await pool.execute(query, [restaurantId, ...activeStatuses]);
+
+    // Safely parse JSON for items
+    const formattedOrders = rows.map(row => {
+      let parsedItems;
+
+      try {
+        // Try parsing JSON (valid if stored properly)
+        parsedItems = JSON.parse(row.items);
+      } catch {
+        // Fallback: handle "[object Object]" or plain object cases
+        if (typeof row.items === 'object') {
+          parsedItems = Array.isArray(row.items) ? row.items : [row.items];
+        } else {
+          parsedItems = [];
+        }
+      }
+
+      return {
         ...row,
-        items: row.items ? JSON.parse(row.items) : []
-      }));
-    } catch (error) {
-      console.error('Error finding active orders:', error);
-      throw new Error(`Database error: ${error.message}`);
-    }
+        items: parsedItems
+      };
+    });
+
+    return formattedOrders;
+  } catch (error) {
+    console.error('Error finding active orders:', error);
+    throw new Error(`Database error: ${error.message}`);
   }
+}
+
 
   async getOrderStats(restaurantId, dateRange = {}) {
     let query = `

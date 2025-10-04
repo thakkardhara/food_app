@@ -170,15 +170,36 @@ async create(restaurantData) {
 
   // Additional useful methods
 async getAllRestaurants() {
-  const query = 'SELECT * FROM restaurants ORDER BY created_at DESC';
+  const query = `
+    SELECT 
+      id,
+      restaurant_id,
+      name,
+      profile_image,
+      email,
+      phone,
+      latitude,
+      longitude,
+      cuisine,
+      status,
+      created_by,
+      created_at,
+      updated_at
+    FROM restaurants
+    ORDER BY created_at DESC
+  `;
+  
   try {
     const [rows] = await pool.execute(query);
-    return rows;
+    
+    // ✅ Parse cuisine if it’s stored as a JSON string
+    return rows
   } catch (error) {
     console.error('Error getting all restaurants:', error);
     throw new Error(`Database error: ${error.message}`);
   }
 }
+
 
 async getAllRestaurantsWithCategories() {
   const restaurantQuery = 'SELECT * FROM restaurants ORDER BY created_at DESC';

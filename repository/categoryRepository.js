@@ -247,26 +247,28 @@ async findCategoryById(restaurantId, categoryId) {
     }
   }
 
-  async getAllCategoriesWithItems(restaurantId) {
-    const query = `
-      SELECT * FROM categories 
-      WHERE restaurant_id = ? 
-      ORDER BY display_order ASC, created_at ASC
-    `;
+ async getAllCategoriesWithItems(restaurantId) {
+  const query = `
+    SELECT * FROM categories 
+    WHERE restaurant_id = ? 
+    ORDER BY display_order ASC, created_at ASC
+  `;
+  
+  try {
+    const [rows] = await pool.execute(query, [restaurantId]);
     
-    try {
-      const [rows] = await pool.execute(query, [restaurantId]);
-      
-      // Parse JSON items for each category
-      return rows.map(row => ({
-        ...row,
-        items: row.items ? JSON.parse(row.items) : []
-      }));
-    } catch (error) {
-      console.error('Error getting all categories:', error);
-      throw new Error(`Database error: ${error.message}`);
-    }
+    return rows.map(row => ({
+      ...row,
+      items: typeof row.items === 'string'
+        ? JSON.parse(row.items)
+        : (row.items || [])
+    }));
+  } catch (error) {
+    console.error('Error getting all categories:', error);
+    throw new Error(`Database error: ${error.message}`);
   }
+}
+
 
   async getCategoriesList(restaurantId) {
     const query = `
