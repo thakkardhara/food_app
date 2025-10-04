@@ -17,6 +17,17 @@ router.post('/register',
   handleUploadError,
   restaurantController.register
 );
+
+
+// UPDATE THE ALL FILD 
+
+router.put('/update',
+  authenticateToken,
+  activeRestaurantOnly,
+  upload.single('profile_image'),
+  handleUploadError,
+  restaurantController.updateAllFields
+);
 // Profile image management routes
 router.post('/profile-image', 
   authenticateToken,

@@ -97,6 +97,48 @@ async create(restaurantData) {
     }
   }
 
+  async updateAllFields(restaurantId, updateData) {
+  try {
+    const updates = [];
+    const values = [];
+
+    // Build dynamic update query
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined) {
+        updates.push(`${key} = ?`);
+        
+        // Handle JSON fields (cuisine and menu)
+        if (key === 'cuisine' || key === 'menu') {
+          values.push(JSON.stringify(updateData[key]));
+        } else {
+          values.push(updateData[key]);
+        }
+      }
+    });
+
+    if (updates.length === 0) {
+      throw new Error('No valid fields to update');
+    }
+
+    // Add timestamp update
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(restaurantId);
+
+    const query = `UPDATE restaurants SET ${updates.join(', ')} WHERE restaurant_id = ?`;
+
+    const [result] = await pool.execute(query, values);
+    
+    if (result.affectedRows === 0) {
+      throw new Error('Restaurant not found');
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error updating all restaurant fields:', error);
+    throw new Error(`Database error: ${error.message}`);
+  }
+}
+
   async updateProfile(restaurantId, updateData) {
     const updates = [];
     const values = [];

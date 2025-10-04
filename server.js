@@ -4,7 +4,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-
+const adminRoutes = require('./routes/adminRoutes');
 
 
 const app = express();
@@ -38,9 +38,8 @@ app.use('/api/restaurant/menu', require('./routes/categoryRoutes'));
 app.use('/api/user/order', require('./routes/ordersRoutes'))
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-
-
-
+// Add admin routes
+app.use('/api/admin', adminRoutes);
 http.listen(port, () => {
   console.log(`Server running on ${process.env.PORT||3000}...`);
 });

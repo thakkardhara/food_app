@@ -189,6 +189,169 @@ async registerRestaurantByAdmin(restaurantData) {
   }
 
 
+  async updateAllRestaurantFields(restaurantId, updateData) {
+  try {
+    // Check if restaurant exists
+    const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+    if (!restaurant) {
+      throw new Error('Restaurant not found');
+    }
+
+    // If there's a new image and old one exists (not default)
+    if (updateData.profile_image && restaurant.profile_image && 
+        !restaurant.profile_image.includes('default')) {
+      await deleteFile(restaurant.profile_image);
+    }
+
+    const allowedUpdates = {};
+    
+    // 1. Name validation
+    if (updateData.name !== undefined) {
+      if (!updateData.name || updateData.name.trim() === '') {
+        throw new Error('Name cannot be empty');
+      }
+      allowedUpdates.name = updateData.name.trim();
+    }
+
+    // 2. Email validation
+    if (updateData.email !== undefined) {
+      if (!this.validateEmail(updateData.email)) {
+        throw new Error('Invalid email format');
+      }
+      
+      const existingRestaurant = await restaurantRepository.findByEmail(updateData.email);
+      if (existingRestaurant && existingRestaurant.restaurant_id !== restaurantId) {
+        throw new Error('Email already exists');
+      }
+      
+      allowedUpdates.email = updateData.email.toLowerCase();
+    }
+
+    // 3. Phone validation
+    if (updateData.phone !== undefined) {
+      if (!this.validatePhone(updateData.phone)) {
+        throw new Error('Phone must be 10 digits');
+      }
+      allowedUpdates.phone = updateData.phone;
+    }
+
+    // 4. Location validation
+    if (updateData.location !== undefined) {
+      let parsedLocation = updateData.location;
+      
+      if (typeof updateData.location === 'string') {
+        try {
+          parsedLocation = JSON.parse(updateData.location);
+        } catch {
+          throw new Error('Invalid location format');
+        }
+      }
+      
+      if (parsedLocation && !this.validateLocation(parsedLocation)) {
+        throw new Error('Invalid location coordinates');
+      }
+      
+      allowedUpdates.latitude = parsedLocation?.latitude || null;
+      allowedUpdates.longitude = parsedLocation?.longitude || null;
+    }
+
+    // 5. Address
+    if (updateData.address !== undefined) {
+      allowedUpdates.address = updateData.address ? updateData.address.trim() : null;
+    }
+
+    // 6. Description
+    if (updateData.description !== undefined) {
+      allowedUpdates.description = updateData.description ? updateData.description.trim() : null;
+    }
+
+    // 7. Cuisine validation
+    if (updateData.cuisine !== undefined) {
+      let parsedCuisine = updateData.cuisine;
+      
+      if (typeof updateData.cuisine === 'string') {
+        try {
+          parsedCuisine = JSON.parse(updateData.cuisine);
+        } catch {
+          throw new Error('Invalid cuisine format');
+        }
+      }
+      
+      if (!Array.isArray(parsedCuisine)) {
+        throw new Error('Cuisine must be an array');
+      }
+      
+      allowedUpdates.cuisine = parsedCuisine;
+    }
+
+    // 8. Menu validation
+    if (updateData.menu !== undefined) {
+      let parsedMenu = updateData.menu;
+      
+      if (typeof updateData.menu === 'string') {
+        try {
+          parsedMenu = JSON.parse(updateData.menu);
+        } catch {
+          throw new Error('Invalid menu format');
+        }
+      }
+      
+      if (!Array.isArray(parsedMenu)) {
+        throw new Error('Menu must be an array');
+      }
+      
+      allowedUpdates.menu = parsedMenu;
+    }
+
+    // 9. Profile image
+    if (updateData.profile_image !== undefined) {
+      allowedUpdates.profile_image = updateData.profile_image;
+    }
+
+    // Check if there are any fields to update
+    if (Object.keys(allowedUpdates).length === 0) {
+      throw new Error('No fields to update');
+    }
+
+    // Call repository to update in database
+    await restaurantRepository.updateAllFields(restaurantId, allowedUpdates);
+
+    // Fetch updated restaurant data from repository
+    const updatedRestaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+
+    return {
+      message: 'Restaurant updated successfully',
+      updated_fields: Object.keys(allowedUpdates),
+      restaurant: {
+        restaurant_id: updatedRestaurant.restaurant_id,
+        name: updatedRestaurant.name,
+        email: updatedRestaurant.email,
+        phone: updatedRestaurant.phone,
+        address: updatedRestaurant.address,
+        description: updatedRestaurant.description,
+        location: {
+          latitude: updatedRestaurant.latitude,
+          longitude: updatedRestaurant.longitude
+        },
+        cuisine: typeof updatedRestaurant.cuisine === 'string' 
+          ? JSON.parse(updatedRestaurant.cuisine) 
+          : updatedRestaurant.cuisine,
+        menu: typeof updatedRestaurant.menu === 'string' 
+          ? JSON.parse(updatedRestaurant.menu) 
+          : updatedRestaurant.menu,
+        profile_image: updatedRestaurant.profile_image 
+          ? `/${updatedRestaurant.profile_image}` 
+          : '/uploads/defaults/restaurant-default.png',
+        status: updatedRestaurant.status
+      }
+    };
+
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+
 async login(email, password) {
     try {
       if (!email || !password) {

@@ -120,6 +120,64 @@ class AuthMiddleware {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
+  async authenticateAdmin(req, res, next) {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    // Extract token (format: "Bearer TOKEN")
+    const token = authHeader.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : authHeader;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Invalid token format' });
+    }
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    } catch (jwtError) {
+      if (jwtError.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Token expired' });
+      }
+      if (jwtError.name === 'JsonWebTokenError') {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+      throw jwtError;
+    }
+
+    // Check if user is admin
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin only.' });
+    }
+
+    // Validate token payload
+    if (!decoded.admin_id || !decoded.email) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+
+    // Add admin info to request object
+    req.admin = {
+      admin_id: decoded.admin_id,
+      email: decoded.email,
+      name: decoded.name,
+      role: decoded.role
+    };
+
+    next();
+
+  } catch (error) {
+    console.error('Admin authentication error:', error.message);
+    return res.status(500).json({ error: 'Authentication failed' });
+  }
+}
+
 }
 
 const authMiddleware = new AuthMiddleware();
@@ -127,5 +185,6 @@ const authMiddleware = new AuthMiddleware();
 module.exports = {
   authenticateToken: authMiddleware.authenticateToken.bind(authMiddleware),
   adminOnly: authMiddleware.adminOnly.bind(authMiddleware),
-  activeRestaurantOnly: authMiddleware.activeRestaurantOnly.bind(authMiddleware)
+  activeRestaurantOnly: authMiddleware.activeRestaurantOnly.bind(authMiddleware),
+  authenticateAdmin: authMiddleware.authenticateAdmin.bind(authMiddleware)
 };

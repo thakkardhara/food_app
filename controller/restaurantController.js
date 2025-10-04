@@ -58,6 +58,49 @@ async register(req, res) {
     }
   }
 
+
+  async updateAllFields(req, res) {
+  try {
+    const { restaurant_id } = req.restaurant;
+    const updateData = req.body;
+    
+    // Handle image if uploaded
+    if (req.file) {
+      updateData.profile_image = req.file.path.replace(/\\/g, '/');
+    }
+    
+    const result = await restaurantService.updateAllRestaurantFields(
+      restaurant_id,
+      updateData
+    );
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Update all fields error:', error.message);
+    
+    // Clean up uploaded file on error
+    if (req.file) {
+      await deleteFile(req.file.path);
+    }
+    
+    if (error.message === 'Restaurant not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    
+    if (error.message === 'No fields to update') {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    if (error.message.includes('Invalid') || 
+        error.message.includes('already exists') ||
+        error.message.includes('must be')) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
   async login(req, res) {
     try {
       const { email, password } = req.body;
