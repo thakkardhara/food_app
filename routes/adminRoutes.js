@@ -19,6 +19,11 @@ router.get('/restaurants/:restaurant_id', adminController.getRestaurantById);
 router.patch('/restaurants/:restaurant_id/status', adminController.updateRestaurantStatus);
 router.delete('/restaurants/:restaurant_id', adminController.deleteRestaurant);
 
+
+// NEW: Restaurant settings management by admin
+router.patch('/restaurants/:restaurant_id/settings', adminController.updateRestaurantSettings);
+router.patch('/restaurants/:restaurant_id/force-offline', adminController.forceRestaurantOffline);
+
 // Dashboard
 router.get('/dashboard/stats', adminController.getDashboardStats);
 

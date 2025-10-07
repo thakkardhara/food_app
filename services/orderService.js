@@ -1,4 +1,5 @@
 const orderRepository = require('../repository/orderRepository');
+const restaurantRepository = require('../repository/restaurantRepository');
 const crypto = require('crypto');
 
 class OrderService {
@@ -336,6 +337,88 @@ async getOrdersByRestaurant(restaurantId, filters = {}) {
     try {
       const history = await orderRepository.getOrderHistory(orderId);
       return history;
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+
+
+
+  async placeOrder(orderData) {
+    try {
+      // Validate order data
+      const errors = this.validateOrderData(orderData);
+      if (errors.length > 0) {
+        throw new Error(errors.join(', '));
+      }
+
+      // ========================================
+      // CHECK IF RESTAURANT CAN ACCEPT ORDERS
+      // ========================================
+      const restaurant = await restaurantRepository.findByRestaurantId(orderData.restaurant_id);
+      
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      // Check if restaurant is online
+      if (!restaurant.is_online) {
+        throw new Error('Restaurant is currently offline and not accepting orders');
+      }
+
+      // Check if restaurant status is active
+      if (restaurant.status !== 'active') {
+        throw new Error('Restaurant is not available for orders');
+      }
+
+      // Check if order type is supported
+      if (orderData.order_type === 'delivery' && !restaurant.delivery_enabled) {
+        throw new Error('Restaurant is not accepting delivery orders at the moment');
+      }
+
+      if (orderData.order_type === 'takeaway' && !restaurant.takeaway_enabled) {
+        throw new Error('Restaurant is not accepting takeaway orders at the moment');
+      }
+
+      // Check payment method
+      if (orderData.payment_type === 'card' && !restaurant.card_payment_enabled) {
+        throw new Error('Card payment is not available. Please choose another payment method');
+      }
+
+      // Generate order ID
+      const orderId = this.generateOrderId();
+
+      // Prepare order data
+      const order = {
+        order_id: orderId,
+        user_id: orderData.user_id,
+        restaurant_id: orderData.restaurant_id,
+        location_id: orderData.location_id,
+        items: JSON.stringify(orderData.items),
+        total_price: orderData.total_price,
+        payment_type: orderData.payment_type,
+        payment_status: 'pending',
+        order_type: orderData.order_type,
+        order_status: 'pending',
+        special_instructions: orderData.special_instructions || null,
+        estimated_delivery_time: orderData.estimated_delivery_time || null
+      };
+
+      // Create order
+      await orderRepository.createOrder(order);
+
+      // Get created order
+      const createdOrder = await orderRepository.findOrderById(orderId);
+
+      return {
+        message: 'Order placed successfully',
+        order: {
+          ...createdOrder,
+          items: JSON.parse(createdOrder.items)
+        }
+      };
 
     } catch (error) {
       throw new Error(error.message);

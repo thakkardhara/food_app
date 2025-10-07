@@ -441,33 +441,6 @@ async getAllRestaurants() {
   }
 }
 
-// async getAllRestaurants() {
-//   try {
-//     const restaurants = await restaurantRepository.getAllRestaurants();
-
-//     const restaurantsWithCategories = await Promise.all(
-//       restaurants.map(async (restaurant) => {
-//         const categories = await restaurantRepository.getCategoriesByRestaurantId(restaurant.restaurant_id);
-//         return {
-//           ...restaurant,
-//           categories: categories || []
-//         };
-//       })
-//     );
-
-//     return restaurantsWithCategories;
-//   } catch (error) {
-//     throw new Error(error.message);
-//   }
-// }
-// async getAllRestaurants() {
-//   try {
-//     const restaurants = await restaurantRepository.getAllRestaurantsWithCategories();
-//     return restaurants;
-//   } catch (error) {
-//     throw new Error(error.message);
-//   }
-// }
 
 
   async getRestaurantByToken(restaurantId) {
@@ -609,6 +582,167 @@ async getAllRestaurants() {
       return {
         message: 'Profile updated successfully',
         updated_fields: Object.keys(allowedUpdates)
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+
+  // * Update restaurant settings
+
+  async updateSettings(restaurantId, settings) {
+    try {
+      // Validate restaurant exists
+      const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      // Validate boolean values
+      const validSettings = {};
+      
+      if (settings.card_payment_enabled !== undefined) {
+        if (typeof settings.card_payment_enabled !== 'boolean') {
+          throw new Error('card_payment_enabled must be a boolean');
+        }
+        validSettings.card_payment_enabled = settings.card_payment_enabled;
+      }
+
+      if (settings.delivery_enabled !== undefined) {
+        if (typeof settings.delivery_enabled !== 'boolean') {
+          throw new Error('delivery_enabled must be a boolean');
+        }
+        validSettings.delivery_enabled = settings.delivery_enabled;
+      }
+
+      if (settings.takeaway_enabled !== undefined) {
+        if (typeof settings.takeaway_enabled !== 'boolean') {
+          throw new Error('takeaway_enabled must be a boolean');
+        }
+        validSettings.takeaway_enabled = settings.takeaway_enabled;
+      }
+
+      if (settings.is_online !== undefined) {
+        if (typeof settings.is_online !== 'boolean') {
+          throw new Error('is_online must be a boolean');
+        }
+        validSettings.is_online = settings.is_online;
+      }
+
+      // Ensure at least one service is enabled if restaurant is online
+      if (validSettings.is_online === true) {
+        const currentSettings = await restaurantRepository.getSettings(restaurantId);
+        const deliveryWillBeEnabled = validSettings.delivery_enabled ?? currentSettings.delivery_enabled;
+        const takeawayWillBeEnabled = validSettings.takeaway_enabled ?? currentSettings.takeaway_enabled;
+
+        if (!deliveryWillBeEnabled && !takeawayWillBeEnabled) {
+          throw new Error('At least one service (delivery or takeaway) must be enabled when restaurant is online');
+        }
+      }
+
+      await restaurantRepository.updateSettings(restaurantId, validSettings);
+
+      // Get updated settings
+      const updatedSettings = await restaurantRepository.getSettings(restaurantId);
+
+      return {
+        message: 'Settings updated successfully',
+        settings: updatedSettings
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
+   * Toggle online/offline status
+   */
+  async toggleOnlineStatus(restaurantId, isOnline) {
+    try {
+      // Validate restaurant exists
+      const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      if (restaurant.status !== 'active') {
+        throw new Error('Only active restaurants can be set online');
+      }
+
+      // If going online, check if at least one service is enabled
+      if (isOnline) {
+        const settings = await restaurantRepository.getSettings(restaurantId);
+        if (!settings.delivery_enabled && !settings.takeaway_enabled) {
+          throw new Error('Please enable at least one service (delivery or takeaway) before going online');
+        }
+      }
+
+      await restaurantRepository.toggleOnlineStatus(restaurantId, isOnline);
+
+      return {
+        message: `Restaurant is now ${isOnline ? 'online' : 'offline'}`,
+        is_online: isOnline
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
+   * Get restaurant settings
+   */
+  async getSettings(restaurantId) {
+    try {
+      const settings = await restaurantRepository.getSettings(restaurantId);
+      
+      if (!settings) {
+        throw new Error('Restaurant not found');
+      }
+
+      return settings;
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
+   * Toggle individual service (delivery or takeaway)
+   */
+  async toggleService(restaurantId, serviceType, enabled) {
+    try {
+      const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
+      if (!restaurant) {
+        throw new Error('Restaurant not found');
+      }
+
+      const validServices = ['delivery', 'takeaway'];
+      if (!validServices.includes(serviceType)) {
+        throw new Error('Invalid service type. Must be "delivery" or "takeaway"');
+      }
+
+      const settingKey = `${serviceType}_enabled`;
+      const settings = { [settingKey]: enabled };
+
+      // If disabling a service and restaurant is online, ensure other service is enabled
+      if (!enabled && restaurant.is_online) {
+        const currentSettings = await restaurantRepository.getSettings(restaurantId);
+        const otherService = serviceType === 'delivery' ? 'takeaway_enabled' : 'delivery_enabled';
+        
+        if (!currentSettings[otherService]) {
+          throw new Error(`Cannot disable ${serviceType}. At least one service must be enabled when restaurant is online`);
+        }
+      }
+
+      await restaurantRepository.updateSettings(restaurantId, settings);
+
+      return {
+        message: `${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} service ${enabled ? 'enabled' : 'disabled'}`,
+        [settingKey]: enabled
       };
 
     } catch (error) {

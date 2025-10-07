@@ -78,6 +78,27 @@ router.get('/dashboard', authenticateToken, activeRestaurantOnly, (req, res) => 
 });
 
 
+router.use(authenticateToken);
+
+
+router.get('/settings', restaurantController.getSettings);
+
+// Update all settings at once
+router.patch('/settings', restaurantController.updateSettings);
+
+// Toggle online/offline status
+router.patch('/toggle-online', restaurantController.toggleOnlineStatus);
+
+// Toggle card payment
+router.patch('/toggle-card-payment', restaurantController.toggleCardPayment);
+
+// Toggle delivery service
+router.patch('/toggle-delivery', restaurantController.toggleDelivery);
+
+// Toggle takeaway service
+router.patch('/toggle-takeaway', restaurantController.toggleTakeaway);
+
+
 router.use((error, req, res, next) => {
   console.error('Restaurant route error:', error);
   

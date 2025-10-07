@@ -55,25 +55,7 @@ class AdminController {
     }
   }
 
-  // Get All Restaurants
-  async getAllRestaurants(req, res) {
-    try {
-      const { status, page = 1, limit = 20, search } = req.query;
-      
-      const result = await adminService.getAllRestaurants({
-        status,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        search
-      });
-      
-      res.status(200).json(result);
-    } catch (error) {
-      console.error('Get all restaurants error:', error.message);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-
+  
   // Update Restaurant Status
   async updateRestaurantStatus(req, res) {
     try {
@@ -96,24 +78,55 @@ class AdminController {
       }
       
       if (error.message.includes('Invalid status') || 
-          error.message.includes('required')) {
+      error.message.includes('required')) {
         return res.status(400).json({ error: error.message });
       }
       
       res.status(500).json({ error: 'Internal server error' });
     }
   }
+  // Get All Restaurants
+  async getAllRestaurants(req, res) {
+    try {
+      const { status, page = 1, limit = 20, search } = req.query;
+      
+      const result = await adminService.getAllRestaurants({
+        status,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        search
+      });
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get all restaurants error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
 
   // Get Restaurant Details
-  async getRestaurantById(req, res) {
+ async getRestaurantById(req, res) {
     try {
       const { restaurant_id } = req.params;
+      
       const restaurant = await adminService.getRestaurantById(restaurant_id);
+      
+      // Parse JSON fields if stored as strings
+      if (typeof restaurant.cuisine === 'string') {
+        restaurant.cuisine = JSON.parse(restaurant.cuisine);
+      }
+      if (typeof restaurant.menu === 'string') {
+        restaurant.menu = JSON.parse(restaurant.menu);
+      }
+
+      // Remove password from response
+      const { password, ...restaurantData } = restaurant;
       
       res.status(200).json({
         message: 'Restaurant details retrieved successfully',
-        restaurant
+        restaurant: restaurantData
       });
+      
     } catch (error) {
       console.error('Get restaurant by ID error:', error.message);
       
@@ -125,6 +138,57 @@ class AdminController {
     }
   }
 
+  //  * Update restaurant settings by admin
+ 
+  async updateRestaurantSettings(req, res) {
+    try {
+      const { restaurant_id } = req.params;
+      const settings = req.body;
+      
+      const result = await adminService.updateRestaurantSettings(restaurant_id, settings);
+      
+      res.status(200).json(result);
+      
+    } catch (error) {
+      console.error('Admin update restaurant settings error:', error.message);
+      
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      if (error.message.includes('must be') || 
+          error.message.includes('Invalid') ||
+          error.message.includes('At least one')) {
+        return res.status(400).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Force restaurant offline by admin
+   * PATCH /api/admin/restaurants/:restaurant_id/force-offline
+   */
+  async forceRestaurantOffline(req, res) {
+    try {
+      const { restaurant_id } = req.params;
+      const { reason } = req.body;
+      
+      const result = await adminService.forceRestaurantOffline(restaurant_id, reason);
+      
+      res.status(200).json(result);
+      
+    } catch (error) {
+      console.error('Force restaurant offline error:', error.message);
+      
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
   // Get Dashboard Statistics
   async getDashboardStats(req, res) {
     try {

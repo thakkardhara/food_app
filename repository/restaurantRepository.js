@@ -408,6 +408,164 @@ class RestaurantRepository {
       throw new Error(`Database error: ${error.message}`);
     }
   }
+
+
+  //  * Update restaurant settings (payment and service options)
+
+  async updateSettings(restaurantId, settings) {
+    const updates = [];
+    const values = [];
+
+    // Build dynamic update query based on provided settings
+    if (settings.card_payment_enabled !== undefined) {
+      updates.push('card_payment_enabled = ?');
+      values.push(settings.card_payment_enabled);
+    }
+
+    if (settings.delivery_enabled !== undefined) {
+      updates.push('delivery_enabled = ?');
+      values.push(settings.delivery_enabled);
+    }
+
+    if (settings.takeaway_enabled !== undefined) {
+      updates.push('takeaway_enabled = ?');
+      values.push(settings.takeaway_enabled);
+    }
+
+    if (settings.is_online !== undefined) {
+      updates.push('is_online = ?');
+      values.push(settings.is_online);
+    }
+
+    if (updates.length === 0) {
+      return null;
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(restaurantId);
+
+    const query = `
+      UPDATE restaurants 
+      SET ${updates.join(', ')} 
+      WHERE restaurant_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, values);
+      return result;
+    } catch (error) {
+      console.error('Error updating restaurant settings:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Toggle restaurant online/offline status
+   */
+  async toggleOnlineStatus(restaurantId, isOnline) {
+    const query = `
+      UPDATE restaurants 
+      SET is_online = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE restaurant_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [isOnline, restaurantId]);
+      return result;
+    } catch (error) {
+      console.error('Error toggling online status:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get restaurant settings only
+   */
+  async getSettings(restaurantId) {
+    const query = `
+      SELECT 
+        restaurant_id,
+        card_payment_enabled,
+        delivery_enabled,
+        takeaway_enabled,
+        is_online
+      FROM restaurants 
+      WHERE restaurant_id = ?
+    `;
+
+    try {
+      const [rows] = await pool.execute(query, [restaurantId]);
+      return rows[0] || null;
+    } catch (error) {
+      console.error('Error getting restaurant settings:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if restaurant is accepting orders
+   */
+  async canAcceptOrders(restaurantId, orderType) {
+    const query = `
+      SELECT 
+        is_online,
+        delivery_enabled,
+        takeaway_enabled,
+        status
+      FROM restaurants 
+      WHERE restaurant_id = ?
+    `;
+
+    try {
+      const [rows] = await pool.execute(query, [restaurantId]);
+      const restaurant = rows[0];
+
+      if (!restaurant) {
+        return { canAccept: false, reason: 'Restaurant not found' };
+      }
+
+      if (!restaurant.is_online) {
+        return { canAccept: false, reason: 'Restaurant is currently offline' };
+      }
+
+      if (restaurant.status !== 'active') {
+        return { canAccept: false, reason: 'Restaurant is not active' };
+      }
+
+      if (orderType === 'delivery' && !restaurant.delivery_enabled) {
+        return { canAccept: false, reason: 'Delivery service is currently unavailable' };
+      }
+
+      if (orderType === 'takeaway' && !restaurant.takeaway_enabled) {
+        return { canAccept: false, reason: 'Takeaway service is currently unavailable' };
+      }
+
+      return { canAccept: true, reason: null };
+    } catch (error) {
+      console.error('Error checking order acceptance:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all online restaurants only
+   */
+  async getOnlineRestaurants(limit = 50, offset = 0) {
+    const query = `
+      SELECT * FROM restaurants 
+      WHERE is_online = true AND status = 'active'
+      ORDER BY created_at DESC 
+      LIMIT ? OFFSET ?
+    `;
+
+    try {
+      const [rows] = await pool.execute(query, [limit, offset]);
+      return rows;
+    } catch (error) {
+      console.error('Error getting online restaurants:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new RestaurantRepository();

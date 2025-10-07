@@ -309,6 +309,173 @@ async allRestaurants(req, res) {
 
 
 
+
+  //  * Update restaurant settings (all toggles)
+
+
+  async updateSettings(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant; // From auth middleware
+      const settings = req.body;
+
+      const result = await restaurantService.updateSettings(restaurant_id, settings);
+      res.status(200).json(result);
+
+    } catch (error) {
+      console.error('Update settings error:', error.message);
+
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message.includes('must be') || 
+          error.message.includes('Invalid') ||
+          error.message.includes('At least one')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Toggle online/offline status
+   * PATCH /api/restaurant/toggle-online
+   */
+  async toggleOnlineStatus(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      const { is_online } = req.body;
+
+      if (typeof is_online !== 'boolean') {
+        return res.status(400).json({ error: 'is_online must be a boolean value' });
+      }
+
+      const result = await restaurantService.toggleOnlineStatus(restaurant_id, is_online);
+      res.status(200).json(result);
+
+    } catch (error) {
+      console.error('Toggle online status error:', error.message);
+
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message.includes('active') || 
+          error.message.includes('enable')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Toggle card payment
+   * PATCH /api/restaurant/toggle-card-payment
+   */
+  async toggleCardPayment(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean value' });
+      }
+
+      const result = await restaurantService.updateSettings(restaurant_id, {
+        card_payment_enabled: enabled
+      });
+
+      res.status(200).json({
+        message: `Card payment ${enabled ? 'enabled' : 'disabled'}`,
+        card_payment_enabled: enabled
+      });
+
+    } catch (error) {
+      console.error('Toggle card payment error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Toggle delivery service
+   * PATCH /api/restaurant/toggle-delivery
+   */
+  async toggleDelivery(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean value' });
+      }
+
+      const result = await restaurantService.toggleService(restaurant_id, 'delivery', enabled);
+      res.status(200).json(result);
+
+    } catch (error) {
+      console.error('Toggle delivery error:', error.message);
+
+      if (error.message.includes('Cannot disable')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Toggle takeaway service
+   * PATCH /api/restaurant/toggle-takeaway
+   */
+  async toggleTakeaway(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean value' });
+      }
+
+      const result = await restaurantService.toggleService(restaurant_id, 'takeaway', enabled);
+      res.status(200).json(result);
+
+    } catch (error) {
+      console.error('Toggle takeaway error:', error.message);
+
+      if (error.message.includes('Cannot disable')) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Get restaurant settings
+   * GET /api/restaurant/settings
+   */
+  async getSettings(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+
+      const settings = await restaurantService.getSettings(restaurant_id);
+      res.status(200).json({ settings });
+
+    } catch (error) {
+      console.error('Get settings error:', error.message);
+
+      if (error.message === 'Restaurant not found') {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+
+
 }
 
 module.exports = new RestaurantController();
