@@ -9,12 +9,10 @@ class CategoryController {
       
       // Verify restaurant ownership
       if (req.restaurant.restaurant_id !== restaurant_id) {
-        
         return res.status(403).json({ error: 'Unauthorized access to this restaurant' });
       }
       
       const result = await categoryService.addCategory(restaurant_id, name);
-      console.log(result,"result ")
       res.status(201).json(result);
     } catch (error) {
       console.error('Add category error:', error.message);

@@ -12,55 +12,33 @@ class CategoryRepository {
     }
   }
 
-async findCategoryByName(restaurantId, name) {
-  const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND LOWER(name) = LOWER(?)';
-  try {
-    const [rows] = await pool.execute(query, [restaurantId, name]);
-
-    if (rows[0] && rows[0].items) {
-      // Parse only if it's a string
-      if (typeof rows[0].items === 'string') {
-        try {
-          rows[0].items = JSON.parse(rows[0].items);
-        } catch (err) {
-          console.warn('Invalid JSON in items column:', rows[0].items);
-          rows[0].items = [];
-        }
+  async findCategoryByName(restaurantId, name) {
+    const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND LOWER(name) = LOWER(?)';
+    try {
+      const [rows] = await pool.execute(query, [restaurantId, name]);
+      if (rows[0] && rows[0].items) {
+        rows[0].items = JSON.parse(rows[0].items);
       }
+      return rows[0] || null;
+    } catch (error) {
+      console.error('Error finding category by name:', error);
+      throw new Error(`Database error: ${error.message}`);
     }
-
-    return rows[0] || null;
-  } catch (error) {
-    console.error('Error finding category by name:', error);
-    throw new Error(`Database error: ${error.message}`);
   }
-}
 
-
-async findCategoryById(restaurantId, categoryId) {
-  const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?';
-  try {
-    const [rows] = await pool.execute(query, [restaurantId, categoryId]);
-    if (rows[0]) {
-      try {
-        if (typeof rows[0].items === 'string') {
-          rows[0].items = rows[0].items.trim() !== ""
-            ? JSON.parse(rows[0].items)
-            : []; 
-        } else if (rows[0].items === null || rows[0].items === undefined) {
-          rows[0].items = [];
-        }
-      } catch (parseError) {
-        console.error("Invalid JSON in items:", rows[0].items, parseError);
-        rows[0].items = []; 
+  async findCategoryById(restaurantId, categoryId) {
+    const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?';
+    try {
+      const [rows] = await pool.execute(query, [restaurantId, categoryId]);
+      if (rows[0] && rows[0].items) {
+        rows[0].items = JSON.parse(rows[0].items);
       }
+      return rows[0] || null;
+    } catch (error) {
+      console.error('Error finding category by ID:', error);
+      throw new Error(`Database error: ${error.message}`);
     }
-    return rows[0] || null;
-  } catch (error) {
-    console.error('Error finding category by ID:', error);
-    throw new Error(`Database error: ${error.message}`);
   }
-}
 
   async getNextDisplayOrder(restaurantId) {
     const query = 'SELECT MAX(display_order) as max_order FROM categories WHERE restaurant_id = ?';
@@ -247,28 +225,26 @@ async findCategoryById(restaurantId, categoryId) {
     }
   }
 
- async getAllCategoriesWithItems(restaurantId) {
-  const query = `
-    SELECT * FROM categories 
-    WHERE restaurant_id = ? 
-    ORDER BY display_order ASC, created_at ASC
-  `;
-  
-  try {
-    const [rows] = await pool.execute(query, [restaurantId]);
+  async getAllCategoriesWithItems(restaurantId) {
+    const query = `
+      SELECT * FROM categories 
+      WHERE restaurant_id = ? 
+      ORDER BY display_order ASC, created_at ASC
+    `;
     
-    return rows.map(row => ({
-      ...row,
-      items: typeof row.items === 'string'
-        ? JSON.parse(row.items)
-        : (row.items || [])
-    }));
-  } catch (error) {
-    console.error('Error getting all categories:', error);
-    throw new Error(`Database error: ${error.message}`);
+    try {
+      const [rows] = await pool.execute(query, [restaurantId]);
+      
+      // Parse JSON items for each category
+      return rows.map(row => ({
+        ...row,
+        items: row.items ? JSON.parse(row.items) : []
+      }));
+    } catch (error) {
+      console.error('Error getting all categories:', error);
+      throw new Error(`Database error: ${error.message}`);
+    }
   }
-}
-
 
   async getCategoriesList(restaurantId) {
     const query = `

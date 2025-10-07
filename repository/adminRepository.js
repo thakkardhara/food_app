@@ -188,7 +188,7 @@ async getAllRestaurants(filters = {}) {
         SUM(CASE WHEN created_by = 'admin' THEN 1 ELSE 0 END) as admin_created,
         SUM(CASE WHEN created_by = 'self' THEN 1 ELSE 0 END) as self_registered
       FROM restaurants
-    `;
+      `;
     
     try {
       const [rows] = await pool.execute(query);
