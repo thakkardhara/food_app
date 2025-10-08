@@ -223,7 +223,12 @@ class RestaurantRepository {
       status,
       created_by,
       created_at,
-      updated_at
+      updated_at,
+      card_payment_enabled,
+      cash_payment_enabled,
+      delivery_enabled,
+      takeaway_enabled,
+      is_online
     FROM restaurants
     ORDER BY created_at DESC
   `;
@@ -231,13 +236,23 @@ class RestaurantRepository {
     try {
       const [rows] = await pool.execute(query);
 
-      // ✅ Parse cuisine if it’s stored as a JSON string
-      return rows;
+      // Normalize and parse fields
+      return rows.map((r) => ({
+        ...r,
+        cuisine:
+          typeof r.cuisine === "string"
+            ? JSON.parse(r.cuisine || "[]")
+            : r.cuisine || [],
+        profile_image: r.profile_image
+          ? `/${r.profile_image}`
+          : "/uploads/defaults/restaurant-default.png",
+      }));
     } catch (error) {
       console.error("Error getting all restaurants:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
+
   async getAllRestaurantsWithCategories() {
     const restaurantQuery =
       "SELECT * FROM restaurants ORDER BY created_at DESC";
