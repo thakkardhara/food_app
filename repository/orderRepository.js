@@ -61,21 +61,88 @@ class OrderRepository {
   }
 
   async findOrderById(orderId) {
-    const query = "SELECT * FROM orders WHERE order_id = ?";
+    // Select order and some restaurant fields (LEFT JOIN so we still return the order
+    // even if the restaurant row is missing)
+    const query = `
+      SELECT
+        o.*, 
+        r.restaurant_id AS r_restaurant_id,
+        r.name AS restaurant_name,
+        r.email AS restaurant_email,
+        r.phone AS restaurant_phone,
+        r.profile_image AS restaurant_profile_image,
+        r.latitude AS restaurant_latitude,
+        r.longitude AS restaurant_longitude,
+        r.cuisine AS restaurant_cuisine,
+        r.status AS restaurant_status
+      FROM orders o
+      LEFT JOIN restaurants r ON o.restaurant_id = r.restaurant_id
+      WHERE o.order_id = ?
+      LIMIT 1
+    `;
+
     try {
       const [rows] = await pool.execute(query, [orderId]);
+      const row = rows[0];
 
-      if (rows[0] && rows[0].items) {
-        if (typeof rows[0].items === "string") {
+      if (!row) return null;
+
+      // parse items
+      let items = [];
+      if (row.items) {
+        if (typeof row.items === "string") {
           try {
-            rows[0].items = JSON.parse(rows[0].items);
+            items = JSON.parse(row.items);
           } catch (err) {
             console.error("Failed to parse items JSON:", err);
+            items = [];
           }
+        } else if (typeof row.items === "object") {
+          items = row.items;
         }
       }
 
-      return rows[0] || null;
+      // parse restaurant cuisine (may be JSON)
+      let cuisine = [];
+      if (row.restaurant_cuisine) {
+        if (typeof row.restaurant_cuisine === "string") {
+          try {
+            cuisine = JSON.parse(row.restaurant_cuisine || "[]");
+          } catch (err) {
+            console.error("Failed to parse restaurant cuisine JSON:", err);
+            cuisine = [];
+          }
+        } else if (typeof row.restaurant_cuisine === "object") {
+          cuisine = row.restaurant_cuisine;
+        }
+      }
+
+      // build restaurant object
+      const restaurant = {
+        restaurant_id: row.r_restaurant_id || row.restaurant_id || null,
+        name: row.restaurant_name || null,
+        email: row.restaurant_email || null,
+        phone: row.restaurant_phone || null,
+        profile_image: row.restaurant_profile_image || null,
+        latitude: row.restaurant_latitude || null,
+        longitude: row.restaurant_longitude || null,
+        cuisine,
+        status: row.restaurant_status || null,
+      };
+
+      // remove the raw restaurant_* fields from the result to avoid duplication
+      const result = { ...row, items, restaurant };
+      delete result.r_restaurant_id;
+      delete result.restaurant_name;
+      delete result.restaurant_email;
+      delete result.restaurant_phone;
+      delete result.restaurant_profile_image;
+      delete result.restaurant_latitude;
+      delete result.restaurant_longitude;
+      delete result.restaurant_cuisine;
+      delete result.restaurant_status;
+
+      return result;
     } catch (error) {
       console.error("Error finding order:", error);
       throw new Error(`Database error: ${error.message}`);
