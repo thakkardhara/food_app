@@ -1,52 +1,75 @@
-const pool = require('../db/db');
+const pool = require("../db/db");
 
 class CategoryRepository {
+  // Safely parse the `items` field which may be stored as a JSON string,
+  // or already returned as an object by the DB driver, or malformed.
+  safeParseItems(value) {
+    if (!value) return [];
+    if (typeof value === "object") return value;
+    if (typeof value === "string") {
+      try {
+        return JSON.parse(value);
+      } catch (err) {
+        console.error(
+          "Failed to parse items JSON (fallback to empty array):",
+          value,
+          err
+        );
+        return [];
+      }
+    }
+    return [];
+  }
   async checkRestaurantExists(restaurantId) {
-    const query = 'SELECT restaurant_id FROM restaurants WHERE restaurant_id = ?';
+    const query =
+      "SELECT restaurant_id FROM restaurants WHERE restaurant_id = ?";
     try {
       const [rows] = await pool.execute(query, [restaurantId]);
       return rows.length > 0;
     } catch (error) {
-      console.error('Error checking restaurant:', error);
+      console.error("Error checking restaurant:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
 
   async findCategoryByName(restaurantId, name) {
-    const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND LOWER(name) = LOWER(?)';
+    const query =
+      "SELECT * FROM categories WHERE restaurant_id = ? AND LOWER(name) = LOWER(?)";
     try {
       const [rows] = await pool.execute(query, [restaurantId, name]);
       if (rows[0] && rows[0].items) {
-        rows[0].items = JSON.parse(rows[0].items);
+        rows[0].items = this.safeParseItems(rows[0].items);
       }
       return rows[0] || null;
     } catch (error) {
-      console.error('Error finding category by name:', error);
+      console.error("Error finding category by name:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
 
   async findCategoryById(restaurantId, categoryId) {
-    const query = 'SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?';
+    const query =
+      "SELECT * FROM categories WHERE restaurant_id = ? AND category_id = ?";
     try {
       const [rows] = await pool.execute(query, [restaurantId, categoryId]);
       if (rows[0] && rows[0].items) {
-        rows[0].items = JSON.parse(rows[0].items);
+        rows[0].items = this.safeParseItems(rows[0].items);
       }
       return rows[0] || null;
     } catch (error) {
-      console.error('Error finding category by ID:', error);
+      console.error("Error finding category by ID:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
 
   async getNextDisplayOrder(restaurantId) {
-    const query = 'SELECT MAX(display_order) as max_order FROM categories WHERE restaurant_id = ?';
+    const query =
+      "SELECT MAX(display_order) as max_order FROM categories WHERE restaurant_id = ?";
     try {
       const [rows] = await pool.execute(query, [restaurantId]);
       return (rows[0].max_order || 0) + 1;
     } catch (error) {
-      console.error('Error getting display order:', error);
+      console.error("Error getting display order:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -58,7 +81,7 @@ class CategoryRepository {
       name,
       items,
       display_order,
-      is_active
+      is_active,
     } = categoryData;
 
     const query = `
@@ -74,14 +97,14 @@ class CategoryRepository {
         name,
         JSON.stringify(items),
         display_order,
-        is_active
+        is_active,
       ]);
       return result;
     } catch (error) {
-      console.error('Error creating category:', error);
-      
-      if (error.code === 'ER_DUP_ENTRY') {
-        throw new Error('Category already exists');
+      console.error("Error creating category:", error);
+
+      if (error.code === "ER_DUP_ENTRY") {
+        throw new Error("Category already exists");
       }
       throw new Error(`Database error: ${error.message}`);
     }
@@ -92,12 +115,12 @@ class CategoryRepository {
     const values = [];
 
     // Build dynamic update query
-    Object.keys(updateData).forEach(key => {
+    Object.keys(updateData).forEach((key) => {
       if (updateData[key] !== undefined) {
         updates.push(`${key} = ?`);
-        
+
         // Handle JSON fields
-        if (key === 'items') {
+        if (key === "items") {
           values.push(JSON.stringify(updateData[key]));
         } else {
           values.push(updateData[key]);
@@ -109,12 +132,12 @@ class CategoryRepository {
       return null;
     }
 
-    updates.push('updated_at = CURRENT_TIMESTAMP');
+    updates.push("updated_at = CURRENT_TIMESTAMP");
     values.push(restaurantId, categoryId);
 
     const query = `
       UPDATE categories 
-      SET ${updates.join(', ')} 
+      SET ${updates.join(", ")} 
       WHERE restaurant_id = ? AND category_id = ?
     `;
 
@@ -122,18 +145,19 @@ class CategoryRepository {
       const [result] = await pool.execute(query, values);
       return result;
     } catch (error) {
-      console.error('Error updating category:', error);
+      console.error("Error updating category:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
 
   async deleteCategory(restaurantId, categoryId) {
-    const query = 'DELETE FROM categories WHERE restaurant_id = ? AND category_id = ?';
+    const query =
+      "DELETE FROM categories WHERE restaurant_id = ? AND category_id = ?";
     try {
       const [result] = await pool.execute(query, [restaurantId, categoryId]);
       return result;
     } catch (error) {
-      console.error('Error deleting category:', error);
+      console.error("Error deleting category:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -142,26 +166,26 @@ class CategoryRepository {
     // First get current items
     const category = await this.findCategoryById(restaurantId, categoryId);
     const items = category.items || [];
-    
+
     // Add new item
     items.push(newItem);
-    
+
     // Update category with new items array
     const query = `
       UPDATE categories 
       SET items = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE restaurant_id = ? AND category_id = ?
     `;
-    
+
     try {
       const [result] = await pool.execute(query, [
         JSON.stringify(items),
         restaurantId,
-        categoryId
+        categoryId,
       ]);
       return result;
     } catch (error) {
-      console.error('Error adding item to category:', error);
+      console.error("Error adding item to category:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -170,29 +194,29 @@ class CategoryRepository {
     // Get current category
     const category = await this.findCategoryById(restaurantId, categoryId);
     const items = category.items || [];
-    
+
     // Find and update the item
-    const itemIndex = items.findIndex(item => item.item_id === itemId);
+    const itemIndex = items.findIndex((item) => item.item_id === itemId);
     if (itemIndex !== -1) {
       items[itemIndex] = { ...items[itemIndex], ...updateData };
     }
-    
+
     // Update category with modified items array
     const query = `
       UPDATE categories 
       SET items = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE restaurant_id = ? AND category_id = ?
     `;
-    
+
     try {
       const [result] = await pool.execute(query, [
         JSON.stringify(items),
         restaurantId,
-        categoryId
+        categoryId,
       ]);
       return result;
     } catch (error) {
-      console.error('Error updating item:', error);
+      console.error("Error updating item:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -201,26 +225,26 @@ class CategoryRepository {
     // Get current category
     const category = await this.findCategoryById(restaurantId, categoryId);
     const items = category.items || [];
-    
+
     // Remove the item
-    const filteredItems = items.filter(item => item.item_id !== itemId);
-    
+    const filteredItems = items.filter((item) => item.item_id !== itemId);
+
     // Update category with filtered items array
     const query = `
       UPDATE categories 
       SET items = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE restaurant_id = ? AND category_id = ?
     `;
-    
+
     try {
       const [result] = await pool.execute(query, [
         JSON.stringify(filteredItems),
         restaurantId,
-        categoryId
+        categoryId,
       ]);
       return result;
     } catch (error) {
-      console.error('Error deleting item:', error);
+      console.error("Error deleting item:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -231,17 +255,17 @@ class CategoryRepository {
       WHERE restaurant_id = ? 
       ORDER BY display_order ASC, created_at ASC
     `;
-    
+
     try {
       const [rows] = await pool.execute(query, [restaurantId]);
-      
-      // Parse JSON items for each category
-      return rows.map(row => ({
+
+      // Parse items for each category safely
+      return rows.map((row) => ({
         ...row,
-        items: row.items ? JSON.parse(row.items) : []
+        items: this.safeParseItems(row.items),
       }));
     } catch (error) {
-      console.error('Error getting all categories:', error);
+      console.error("Error getting all categories:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -253,44 +277,45 @@ class CategoryRepository {
       WHERE restaurant_id = ? 
       ORDER BY display_order ASC, created_at ASC
     `;
-    
+
     try {
       const [rows] = await pool.execute(query, [restaurantId]);
       return rows;
     } catch (error) {
-      console.error('Error getting categories list:', error);
+      console.error("Error getting categories list:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
 
   async bulkUpdateMenu(restaurantId, categories) {
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // Delete all existing categories for this restaurant
       await connection.execute(
-        'DELETE FROM categories WHERE restaurant_id = ?',
+        "DELETE FROM categories WHERE restaurant_id = ?",
         [restaurantId]
       );
-      
+
       // Insert new categories with items
       for (let i = 0; i < categories.length; i++) {
         const category = categories[i];
         const categoryId = category.category_id || this.generateCategoryId();
-        
+
         // Prepare items with IDs if not present
-        const items = (category.items || []).map(item => ({
+        const items = (category.items || []).map((item) => ({
           item_id: item.item_id || this.generateItemId(),
           name: item.name,
           photo: item.photo || null,
           price: item.price,
           description: item.description || null,
-          availability: item.availability !== undefined ? item.availability : true,
-          created_at: new Date().toISOString()
+          availability:
+            item.availability !== undefined ? item.availability : true,
+          created_at: new Date().toISOString(),
         }));
-        
+
         await connection.execute(
           `INSERT INTO categories 
           (category_id, restaurant_id, name, items, display_order, is_active) 
@@ -301,17 +326,16 @@ class CategoryRepository {
             category.name,
             JSON.stringify(items),
             i + 1,
-            category.is_active !== undefined ? category.is_active : true
+            category.is_active !== undefined ? category.is_active : true,
           ]
         );
       }
-      
+
       await connection.commit();
       return true;
-      
     } catch (error) {
       await connection.rollback();
-      console.error('Error in bulk update:', error);
+      console.error("Error in bulk update:", error);
       throw new Error(`Database error: ${error.message}`);
     } finally {
       connection.release();
@@ -341,12 +365,12 @@ class CategoryRepository {
       FROM categories 
       WHERE restaurant_id = ?
     `;
-    
+
     try {
       const [rows] = await pool.execute(query, [restaurantId]);
       return rows[0];
     } catch (error) {
-      console.error('Error getting category stats:', error);
+      console.error("Error getting category stats:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -358,30 +382,32 @@ class CategoryRepository {
       FROM categories 
       WHERE restaurant_id = ? AND is_active = 1
     `;
-    
+
     try {
       const [rows] = await pool.execute(query, [restaurantId]);
       const results = [];
-      
-      rows.forEach(category => {
-        const items = JSON.parse(category.items || '[]');
-        const matchedItems = items.filter(item => 
-          item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+
+      rows.forEach((category) => {
+        const items = this.safeParseItems(category.items);
+        const matchedItems = items.filter(
+          (item) =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (item.description &&
+              item.description.toLowerCase().includes(searchTerm.toLowerCase()))
         );
-        
+
         if (matchedItems.length > 0) {
           results.push({
             category_id: category.category_id,
             category_name: category.category_name,
-            items: matchedItems
+            items: matchedItems,
           });
         }
       });
-      
+
       return results;
     } catch (error) {
-      console.error('Error searching items:', error);
+      console.error("Error searching items:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
