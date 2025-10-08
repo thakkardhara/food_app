@@ -409,7 +409,6 @@ class RestaurantRepository {
     }
   }
 
-
   //  * Update restaurant settings (payment and service options)
 
   async updateSettings(restaurantId, settings) {
@@ -418,22 +417,27 @@ class RestaurantRepository {
 
     // Build dynamic update query based on provided settings
     if (settings.card_payment_enabled !== undefined) {
-      updates.push('card_payment_enabled = ?');
+      updates.push("card_payment_enabled = ?");
       values.push(settings.card_payment_enabled);
     }
 
+    if (settings.cash_payment_enabled !== undefined) {
+      updates.push("cash_payment_enabled = ?");
+      values.push(settings.cash_payment_enabled);
+    }
+
     if (settings.delivery_enabled !== undefined) {
-      updates.push('delivery_enabled = ?');
+      updates.push("delivery_enabled = ?");
       values.push(settings.delivery_enabled);
     }
 
     if (settings.takeaway_enabled !== undefined) {
-      updates.push('takeaway_enabled = ?');
+      updates.push("takeaway_enabled = ?");
       values.push(settings.takeaway_enabled);
     }
 
     if (settings.is_online !== undefined) {
-      updates.push('is_online = ?');
+      updates.push("is_online = ?");
       values.push(settings.is_online);
     }
 
@@ -441,12 +445,12 @@ class RestaurantRepository {
       return null;
     }
 
-    updates.push('updated_at = CURRENT_TIMESTAMP');
+    updates.push("updated_at = CURRENT_TIMESTAMP");
     values.push(restaurantId);
 
     const query = `
       UPDATE restaurants 
-      SET ${updates.join(', ')} 
+      SET ${updates.join(", ")} 
       WHERE restaurant_id = ?
     `;
 
@@ -454,7 +458,7 @@ class RestaurantRepository {
       const [result] = await pool.execute(query, values);
       return result;
     } catch (error) {
-      console.error('Error updating restaurant settings:', error);
+      console.error("Error updating restaurant settings:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -473,7 +477,7 @@ class RestaurantRepository {
       const [result] = await pool.execute(query, [isOnline, restaurantId]);
       return result;
     } catch (error) {
-      console.error('Error toggling online status:', error);
+      console.error("Error toggling online status:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -486,6 +490,7 @@ class RestaurantRepository {
       SELECT 
         restaurant_id,
         card_payment_enabled,
+        cash_payment_enabled,
         delivery_enabled,
         takeaway_enabled,
         is_online
@@ -497,7 +502,7 @@ class RestaurantRepository {
       const [rows] = await pool.execute(query, [restaurantId]);
       return rows[0] || null;
     } catch (error) {
-      console.error('Error getting restaurant settings:', error);
+      console.error("Error getting restaurant settings:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -521,28 +526,34 @@ class RestaurantRepository {
       const restaurant = rows[0];
 
       if (!restaurant) {
-        return { canAccept: false, reason: 'Restaurant not found' };
+        return { canAccept: false, reason: "Restaurant not found" };
       }
 
       if (!restaurant.is_online) {
-        return { canAccept: false, reason: 'Restaurant is currently offline' };
+        return { canAccept: false, reason: "Restaurant is currently offline" };
       }
 
-      if (restaurant.status !== 'active') {
-        return { canAccept: false, reason: 'Restaurant is not active' };
+      if (restaurant.status !== "active") {
+        return { canAccept: false, reason: "Restaurant is not active" };
       }
 
-      if (orderType === 'delivery' && !restaurant.delivery_enabled) {
-        return { canAccept: false, reason: 'Delivery service is currently unavailable' };
+      if (orderType === "delivery" && !restaurant.delivery_enabled) {
+        return {
+          canAccept: false,
+          reason: "Delivery service is currently unavailable",
+        };
       }
 
-      if (orderType === 'takeaway' && !restaurant.takeaway_enabled) {
-        return { canAccept: false, reason: 'Takeaway service is currently unavailable' };
+      if (orderType === "takeaway" && !restaurant.takeaway_enabled) {
+        return {
+          canAccept: false,
+          reason: "Takeaway service is currently unavailable",
+        };
       }
 
       return { canAccept: true, reason: null };
     } catch (error) {
-      console.error('Error checking order acceptance:', error);
+      console.error("Error checking order acceptance:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }
@@ -562,7 +573,7 @@ class RestaurantRepository {
       const [rows] = await pool.execute(query, [limit, offset]);
       return rows;
     } catch (error) {
-      console.error('Error getting online restaurants:', error);
+      console.error("Error getting online restaurants:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }

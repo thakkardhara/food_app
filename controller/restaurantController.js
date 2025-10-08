@@ -1,5 +1,5 @@
 const restaurantService = require("../services/restaurantService");
-const { deleteFile } = require('../configs/multerConfig');
+const { deleteFile } = require("../configs/multerConfig");
 
 class RestaurantController {
   async registerByAdmin(req, res) {
@@ -7,99 +7,106 @@ class RestaurantController {
       // Prepare restaurant data with image file if uploaded
       const restaurantData = {
         ...req.body,
-        profile_image: req.file ? req.file.path.replace(/\\/g, '/') : null
+        profile_image: req.file ? req.file.path.replace(/\\/g, "/") : null,
       };
 
-      const result = await restaurantService.registerRestaurantByAdmin(restaurantData);
+      const result = await restaurantService.registerRestaurantByAdmin(
+        restaurantData
+      );
       res.status(201).json(result);
     } catch (error) {
-      console.error('Admin registration error:', error.message);
-      
+      console.error("Admin registration error:", error.message);
+
       // Clean up uploaded file on error
       if (req.file) {
         await deleteFile(req.file.path);
       }
-      
-      if (error.message.includes('already exists') || 
-          error.message.includes('Invalid') || 
-          error.message.includes('required')) {
+
+      if (
+        error.message.includes("already exists") ||
+        error.message.includes("Invalid") ||
+        error.message.includes("required")
+      ) {
         return res.status(400).json({ error: error.message });
       }
-      
-      res.status(500).json({ error: 'Internal server error' });
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-async register(req, res) {
+  async register(req, res) {
     try {
       // Prepare restaurant data with image file if uploaded
       const restaurantData = {
         ...req.body,
-        profile_image: req.file ? req.file.path.replace(/\\/g, '/') : null
+        profile_image: req.file ? req.file.path.replace(/\\/g, "/") : null,
       };
 
       const result = await restaurantService.registerRestaurant(restaurantData);
       res.status(201).json(result);
     } catch (error) {
-      console.error('Self registration error:', error.message);
-      
+      console.error("Self registration error:", error.message);
+
       // Clean up uploaded file on error
       if (req.file) {
         await deleteFile(req.file.path);
       }
-      
-      if (error.message.includes('already exists') || 
-          error.message.includes('Invalid') || 
-          error.message.includes('required')) {
+
+      if (
+        error.message.includes("already exists") ||
+        error.message.includes("Invalid") ||
+        error.message.includes("required")
+      ) {
         return res.status(400).json({ error: error.message });
       }
-      
-      res.status(500).json({ error: 'Internal server error' });
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
-
 
   async updateAllFields(req, res) {
-  try {
-    const { restaurant_id } = req.restaurant;
-    const updateData = req.body;
-    
-    // Handle image if uploaded
-    if (req.file) {
-      updateData.profile_image = req.file.path.replace(/\\/g, '/');
+    try {
+      const { restaurant_id } = req.restaurant;
+      const updateData = req.body;
+
+      // Handle image if uploaded
+      if (req.file) {
+        updateData.profile_image = req.file.path.replace(/\\/g, "/");
+      }
+
+      const result = await restaurantService.updateAllRestaurantFields(
+        restaurant_id,
+        updateData
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Update all fields error:", error.message);
+
+      // Clean up uploaded file on error
+      if (req.file) {
+        await deleteFile(req.file.path);
+      }
+
+      if (error.message === "Restaurant not found") {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (error.message === "No fields to update") {
+        return res.status(400).json({ error: error.message });
+      }
+
+      if (
+        error.message.includes("Invalid") ||
+        error.message.includes("already exists") ||
+        error.message.includes("must be")
+      ) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error" });
     }
-    
-    const result = await restaurantService.updateAllRestaurantFields(
-      restaurant_id,
-      updateData
-    );
-    
-    res.status(200).json(result);
-  } catch (error) {
-    console.error('Update all fields error:', error.message);
-    
-    // Clean up uploaded file on error
-    if (req.file) {
-      await deleteFile(req.file.path);
-    }
-    
-    if (error.message === 'Restaurant not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    
-    if (error.message === 'No fields to update') {
-      return res.status(400).json({ error: error.message });
-    }
-    
-    if (error.message.includes('Invalid') || 
-        error.message.includes('already exists') ||
-        error.message.includes('must be')) {
-      return res.status(400).json({ error: error.message });
-    }
-    
-    res.status(500).json({ error: 'Internal server error' });
   }
-}
 
   async login(req, res) {
     try {
@@ -173,82 +180,85 @@ async register(req, res) {
   }
 
   // Optional: Get restaurant profile (protected route)
-async getProfile(req, res) {
+  async getProfile(req, res) {
     try {
       const { restaurant_id } = req.restaurant;
-      const restaurant = await restaurantService.getRestaurantByToken(restaurant_id);
-      
+      const restaurant = await restaurantService.getRestaurantByToken(
+        restaurant_id
+      );
+
       const { password, ...restaurantProfile } = restaurant;
-      
+
       res.status(200).json({
-        message: 'Profile retrieved successfully',
+        message: "Profile retrieved successfully",
         restaurant: {
           ...restaurantProfile,
-          cuisine: typeof restaurantProfile.cuisine === 'string' 
-            ? JSON.parse(restaurantProfile.cuisine) 
-            : restaurantProfile.cuisine,
-          menu: typeof restaurantProfile.menu === 'string' 
-            ? JSON.parse(restaurantProfile.menu) 
-            : restaurantProfile.menu,
-          profile_image: restaurantProfile.profile_image 
-            ? `/${restaurantProfile.profile_image}` 
-            : '/uploads/defaults/restaurant-default.png'
-        }
+          cuisine:
+            typeof restaurantProfile.cuisine === "string"
+              ? JSON.parse(restaurantProfile.cuisine)
+              : restaurantProfile.cuisine,
+          menu:
+            typeof restaurantProfile.menu === "string"
+              ? JSON.parse(restaurantProfile.menu)
+              : restaurantProfile.menu,
+          profile_image: restaurantProfile.profile_image
+            ? `/${restaurantProfile.profile_image}`
+            : "/uploads/defaults/restaurant-default.png",
+        },
       });
     } catch (error) {
-      console.error('Get profile error:', error.message);
-      
-      if (error.message === 'Restaurant not found') {
-        return res.status(404).json({ error: 'Restaurant not found' });
+      console.error("Get profile error:", error.message);
+
+      if (error.message === "Restaurant not found") {
+        return res.status(404).json({ error: "Restaurant not found" });
       }
-      
-      res.status(500).json({ error: 'Internal server error' });
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
-
 
   // async allRestaurants(res, req) {
   //   const getAllRestaurant = await restaurantService.getAllRestaurants();
   // }
-async allRestaurants(req, res) {
-  try {
-    const restaurants = await restaurantService.getAllRestaurants();
-    res.status(200).json({
-      message: 'Restaurants fetched successfully',
-      data: restaurants
-    });
-  } catch (error) {
-    console.error('Get all restaurants error:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
+  async allRestaurants(req, res) {
+    try {
+      const restaurants = await restaurantService.getAllRestaurants();
+      res.status(200).json({
+        message: "Restaurants fetched successfully",
+        data: restaurants,
+      });
+    } catch (error) {
+      console.error("Get all restaurants error:", error.message);
+      res.status(500).json({ error: "Internal server error" });
+    }
   }
-}
 
   async updateProfileImage(req, res) {
     try {
       const { restaurant_id } = req.restaurant;
-      
+
       if (!req.file) {
-        return res.status(400).json({ error: 'No image file provided' });
+        return res.status(400).json({ error: "No image file provided" });
       }
-      
+
       const result = await restaurantService.updateProfileImage(
-        restaurant_id, 
+        restaurant_id,
         req.file
       );
-      
+
       res.status(200).json(result);
     } catch (error) {
-      console.error('Update profile image error:', error.message);
-      
+      console.error("Update profile image error:", error.message);
+
       if (req.file) {
         await deleteFile(req.file.path);
       }
-      
-      if (error.message === 'Restaurant not found') {
+
+      if (error.message === "Restaurant not found") {
         return res.status(404).json({ error: error.message });
       }
-      
-      res.status(500).json({ error: 'Internal server error' });
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -256,17 +266,17 @@ async allRestaurants(req, res) {
   async deleteProfileImage(req, res) {
     try {
       const { restaurant_id } = req.restaurant;
-      
+
       const result = await restaurantService.deleteProfileImage(restaurant_id);
       res.status(200).json(result);
     } catch (error) {
-      console.error('Delete profile image error:', error.message);
-      
-      if (error.message === 'Restaurant not found') {
+      console.error("Delete profile image error:", error.message);
+
+      if (error.message === "Restaurant not found") {
         return res.status(404).json({ error: error.message });
       }
-      
-      res.status(500).json({ error: 'Internal server error' });
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -275,66 +285,68 @@ async allRestaurants(req, res) {
     try {
       const { restaurant_id } = req.restaurant;
       const updateData = req.body;
-      
+
       // Handle image separately if included
       if (req.file) {
-        updateData.profile_image = req.file.path.replace(/\\/g, '/');
+        updateData.profile_image = req.file.path.replace(/\\/g, "/");
       }
-      
+
       const result = await restaurantService.updateRestaurantProfile(
         restaurant_id,
         updateData
       );
-      
+
       res.status(200).json(result);
     } catch (error) {
-      console.error('Update profile error:', error.message);
-      
+      console.error("Update profile error:", error.message);
+
       if (req.file) {
         await deleteFile(req.file.path);
       }
-      
-      if (error.message === 'Restaurant not found') {
+
+      if (error.message === "Restaurant not found") {
         return res.status(404).json({ error: error.message });
       }
-      
-      if (error.message.includes('Invalid') || 
-          error.message.includes('already exists')) {
+
+      if (
+        error.message.includes("Invalid") ||
+        error.message.includes("already exists")
+      ) {
         return res.status(400).json({ error: error.message });
       }
-      
-      res.status(500).json({ error: 'Internal server error' });
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-
-
-
   //  * Update restaurant settings (all toggles)
-
 
   async updateSettings(req, res) {
     try {
       const { restaurant_id } = req.restaurant; // From auth middleware
       const settings = req.body;
 
-      const result = await restaurantService.updateSettings(restaurant_id, settings);
+      const result = await restaurantService.updateSettings(
+        restaurant_id,
+        settings
+      );
       res.status(200).json(result);
-
     } catch (error) {
-      console.error('Update settings error:', error.message);
+      console.error("Update settings error:", error.message);
 
-      if (error.message === 'Restaurant not found') {
+      if (error.message === "Restaurant not found") {
         return res.status(404).json({ error: error.message });
       }
 
-      if (error.message.includes('must be') || 
-          error.message.includes('Invalid') ||
-          error.message.includes('At least one')) {
+      if (
+        error.message.includes("must be") ||
+        error.message.includes("Invalid") ||
+        error.message.includes("At least one")
+      ) {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -347,26 +359,32 @@ async allRestaurants(req, res) {
       const { restaurant_id } = req.restaurant;
       const { is_online } = req.body;
 
-      if (typeof is_online !== 'boolean') {
-        return res.status(400).json({ error: 'is_online must be a boolean value' });
+      if (typeof is_online !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "is_online must be a boolean value" });
       }
 
-      const result = await restaurantService.toggleOnlineStatus(restaurant_id, is_online);
+      const result = await restaurantService.toggleOnlineStatus(
+        restaurant_id,
+        is_online
+      );
       res.status(200).json(result);
-
     } catch (error) {
-      console.error('Toggle online status error:', error.message);
+      console.error("Toggle online status error:", error.message);
 
-      if (error.message === 'Restaurant not found') {
+      if (error.message === "Restaurant not found") {
         return res.status(404).json({ error: error.message });
       }
 
-      if (error.message.includes('active') || 
-          error.message.includes('enable')) {
+      if (
+        error.message.includes("active") ||
+        error.message.includes("enable")
+      ) {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -379,22 +397,59 @@ async allRestaurants(req, res) {
       const { restaurant_id } = req.restaurant;
       const { enabled } = req.body;
 
-      if (typeof enabled !== 'boolean') {
-        return res.status(400).json({ error: 'enabled must be a boolean value' });
+      if (typeof enabled !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "enabled must be a boolean value" });
       }
 
       const result = await restaurantService.updateSettings(restaurant_id, {
-        card_payment_enabled: enabled
+        card_payment_enabled: enabled,
       });
 
       res.status(200).json({
-        message: `Card payment ${enabled ? 'enabled' : 'disabled'}`,
-        card_payment_enabled: enabled
+        message: `Card payment ${enabled ? "enabled" : "disabled"}`,
+        card_payment_enabled: enabled,
+      });
+    } catch (error) {
+      console.error("Toggle card payment error:", error.message);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  /**
+   * Toggle cash payment
+   * PATCH /api/restaurant/toggle-cash-payment
+   */
+  async toggleCashPayment(req, res) {
+    try {
+      const { restaurant_id } = req.restaurant;
+      const { enabled } = req.body;
+
+      if (typeof enabled !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "enabled must be a boolean value" });
+      }
+
+      // Delegate validation (ensures at least one payment method remains enabled)
+      const result = await restaurantService.updateSettings(restaurant_id, {
+        cash_payment_enabled: enabled,
       });
 
+      res.status(200).json({
+        message: `Cash payment ${enabled ? "enabled" : "disabled"}`,
+        cash_payment_enabled: enabled,
+        settings: result.settings || null,
+      });
     } catch (error) {
-      console.error('Toggle card payment error:', error.message);
-      res.status(500).json({ error: 'Internal server error' });
+      console.error("Toggle cash payment error:", error.message);
+
+      if (error.message.includes("At least one payment")) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -407,21 +462,26 @@ async allRestaurants(req, res) {
       const { restaurant_id } = req.restaurant;
       const { enabled } = req.body;
 
-      if (typeof enabled !== 'boolean') {
-        return res.status(400).json({ error: 'enabled must be a boolean value' });
+      if (typeof enabled !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "enabled must be a boolean value" });
       }
 
-      const result = await restaurantService.toggleService(restaurant_id, 'delivery', enabled);
+      const result = await restaurantService.toggleService(
+        restaurant_id,
+        "delivery",
+        enabled
+      );
       res.status(200).json(result);
-
     } catch (error) {
-      console.error('Toggle delivery error:', error.message);
+      console.error("Toggle delivery error:", error.message);
 
-      if (error.message.includes('Cannot disable')) {
+      if (error.message.includes("Cannot disable")) {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -434,21 +494,26 @@ async allRestaurants(req, res) {
       const { restaurant_id } = req.restaurant;
       const { enabled } = req.body;
 
-      if (typeof enabled !== 'boolean') {
-        return res.status(400).json({ error: 'enabled must be a boolean value' });
+      if (typeof enabled !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "enabled must be a boolean value" });
       }
 
-      const result = await restaurantService.toggleService(restaurant_id, 'takeaway', enabled);
+      const result = await restaurantService.toggleService(
+        restaurant_id,
+        "takeaway",
+        enabled
+      );
       res.status(200).json(result);
-
     } catch (error) {
-      console.error('Toggle takeaway error:', error.message);
+      console.error("Toggle takeaway error:", error.message);
 
-      if (error.message.includes('Cannot disable')) {
+      if (error.message.includes("Cannot disable")) {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -462,20 +527,16 @@ async allRestaurants(req, res) {
 
       const settings = await restaurantService.getSettings(restaurant_id);
       res.status(200).json({ settings });
-
     } catch (error) {
-      console.error('Get settings error:', error.message);
+      console.error("Get settings error:", error.message);
 
-      if (error.message === 'Restaurant not found') {
+      if (error.message === "Restaurant not found") {
         return res.status(404).json({ error: error.message });
       }
 
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: "Internal server error" });
     }
   }
-
-
-
 }
 
 module.exports = new RestaurantController();
