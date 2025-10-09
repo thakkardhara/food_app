@@ -2,6 +2,7 @@ const restaurantRepository = require("../repository/restaurantRepository");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { deleteFile } = require("../configs/multerConfig");
+const {getDefaultImage} = require("../configs/multerConfig")
 class RestaurantService {
   generateRestaurantId() {
     const timestamp = Date.now().toString().slice(-6);
