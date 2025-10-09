@@ -2,7 +2,7 @@ const restaurantRepository = require("../repository/restaurantRepository");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { deleteFile } = require("../configs/multerConfig");
-const {getDefaultImage} = require("../configs/multerConfig")
+const { getDefaultImage } = require("../configs/multerConfig");
 class RestaurantService {
   generateRestaurantId() {
     const timestamp = Date.now().toString().slice(-6);
@@ -198,7 +198,6 @@ class RestaurantService {
 
       await restaurantRepository.create(dataToStore);
 
-      // Fetch the created restaurant to build a token
       const createdRestaurant = await restaurantRepository.findByRestaurantId(
         restaurant_id
       );
