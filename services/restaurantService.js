@@ -197,8 +197,15 @@ class RestaurantService {
 
       await restaurantRepository.create(dataToStore);
 
+      // Fetch the created restaurant to build a token
+      const createdRestaurant = await restaurantRepository.findByRestaurantId(
+        restaurant_id
+      );
+      const token = this.generateJWTToken(createdRestaurant);
+
       return {
         restaurant_id,
+        token,
         status: "pending_review",
         message: "Registration submitted. Waiting for admin approval.",
         profile_image: `/${finalProfileImage}`,
