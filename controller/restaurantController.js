@@ -37,6 +37,7 @@ class RestaurantController {
   async register(req, res) {
     try {
       // Prepare restaurant data with image file if uploaded
+
       const restaurantData = {
         ...req.body,
         profile_image: req.file ? req.file.path.replace(/\\/g, "/") : null,
