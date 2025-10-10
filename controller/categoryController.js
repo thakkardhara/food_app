@@ -7,14 +7,7 @@ class CategoryController {
       const { restaurant_id } = req.params;
       const { name } = req.body;
 
-      // If request is authenticated, verify restaurant ownership
-      if (req.restaurant) {
-        if (req.restaurant.restaurant_id !== restaurant_id) {
-          return res
-            .status(403)
-            .json({ error: "Unauthorized access to this restaurant" });
-        }
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.addCategory(restaurant_id, name);
       res.status(201).json(result);
@@ -39,12 +32,7 @@ class CategoryController {
       const { restaurant_id, category_id } = req.params;
       const updateData = req.body;
 
-      // Verify restaurant ownership
-      if (req.restaurant.restaurant_id !== restaurant_id) {
-        return res
-          .status(403)
-          .json({ error: "Unauthorized access to this restaurant" });
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.updateCategory(
         restaurant_id,
@@ -75,12 +63,7 @@ class CategoryController {
     try {
       const { restaurant_id, category_id } = req.params;
 
-      // Verify restaurant ownership
-      if (req.restaurant.restaurant_id !== restaurant_id) {
-        return res
-          .status(403)
-          .json({ error: "Unauthorized access to this restaurant" });
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.deleteCategory(
         restaurant_id,
@@ -108,12 +91,7 @@ class CategoryController {
       const { restaurant_id, category_id } = req.params;
       const itemData = req.body;
 
-      // Verify restaurant ownership
-      if (req.restaurant.restaurant_id !== restaurant_id) {
-        return res
-          .status(403)
-          .json({ error: "Unauthorized access to this restaurant" });
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.addItemToCategory(
         restaurant_id,
@@ -146,12 +124,7 @@ class CategoryController {
       const { restaurant_id, category_id, item_id } = req.params;
       const updateData = req.body;
 
-      // Verify restaurant ownership
-      if (req.restaurant.restaurant_id !== restaurant_id) {
-        return res
-          .status(403)
-          .json({ error: "Unauthorized access to this restaurant" });
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.updateItem(
         restaurant_id,
@@ -180,12 +153,7 @@ class CategoryController {
     try {
       const { restaurant_id, category_id, item_id } = req.params;
 
-      // Verify restaurant ownership
-      if (req.restaurant.restaurant_id !== restaurant_id) {
-        return res
-          .status(403)
-          .json({ error: "Unauthorized access to this restaurant" });
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.deleteItem(
         restaurant_id,
@@ -228,12 +196,7 @@ class CategoryController {
       const { restaurant_id } = req.params;
       const { categories } = req.body;
 
-      // Verify restaurant ownership
-      if (req.restaurant.restaurant_id !== restaurant_id) {
-        return res
-          .status(403)
-          .json({ error: "Unauthorized access to this restaurant" });
-      }
+      // No authentication required: allow operation without req.restaurant
 
       const result = await categoryService.bulkUpdateMenu(
         restaurant_id,
