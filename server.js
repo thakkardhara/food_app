@@ -31,9 +31,6 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api", require("./routes/addressRoutes"));
-// Mount public restaurant menu routes before the restaurant router which applies
-// router-level authentication. This ensures '/api/restaurant/menu/*' is handled
-// by the menu router without being intercepted by restaurantRoutes' middleware.
 app.use("/api/restaurant/menu", require("./routes/categoryRoutes"));
 app.use("/api/restaurant", require("./routes/restaurantRoutes"));
 app.use("/api/user/order", require("./routes/ordersRoutes"));

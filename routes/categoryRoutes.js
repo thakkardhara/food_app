@@ -1,29 +1,17 @@
+// routes/categoryRoutes.js
 const express = require("express");
 const router = express.Router();
 const categoryController = require("../controller/categoryController");
-// No authentication required for public menu routes
+const { menuUpload, handleMenuUploadError } = require("../configs/menuMulterConfig");
 
-// Public route (no token, no activeRestaurantOnly)
-router.get("/:restaurant_id", categoryController.getFullMenu); // Public route
 
-// All category/menu routes are public (no authentication required)
+// ========== PUBLIC ROUTES (No authentication) ==========
+
+// Get full menu with categories and items
+router.get("/:restaurant_id", categoryController.getFullMenu);
+
 // Get categories list without items
-router.get("/:restaurant_id/categories", categoryController.getCategories); // done
-
-// 2.1 Add Category
-router.post("/:restaurant_id/category", categoryController.addCategory); // done
-
-// 2.2 Update Category
-router.patch(
-  "/:restaurant_id/category/:category_id",
-  categoryController.updateCategory
-); // done
-
-// 2.3 Delete Category
-router.delete(
-  "/:restaurant_id/category/:category_id",
-  categoryController.deleteCategory
-);
+router.get("/:restaurant_id/categories", categoryController.getCategories);
 
 // Get single category with items
 router.get(
@@ -31,26 +19,51 @@ router.get(
   categoryController.getCategoryWithItems
 );
 
-// 2.4 Add Item to Category
+// ========== CATEGORY MANAGEMENT (PUBLIC) ==========
+
+// Add Category
+router.post("/:restaurant_id/category", categoryController.addCategory);
+
+// Update Category
+router.patch(
+  "/:restaurant_id/category/:category_id",
+  categoryController.updateCategory
+);
+
+// Delete Category
+router.delete(
+  "/:restaurant_id/category/:category_id",
+  categoryController.deleteCategory
+);
+
+// ========== ITEM MANAGEMENT WITH IMAGE UPLOAD (PUBLIC) ==========
+
+// Add Item to Category (WITH IMAGE)
 router.post(
   "/:restaurant_id/category/:category_id/item",
+  menuUpload.single("photo"),
+  handleMenuUploadError,
   categoryController.addItem
-); // done
+);
 
-// 2.5 Update Item
+// Update Item (WITH IMAGE)
 router.patch(
   "/:restaurant_id/category/:category_id/item/:item_id",
+  menuUpload.single("photo"),
+  handleMenuUploadError,
   categoryController.updateItem
-); // done
+);
 
-// 2.6 Delete Item
+// Delete Item
 router.delete(
   "/:restaurant_id/category/:category_id/item/:item_id",
   categoryController.deleteItem
-); // done
+);
 
-// 2.8 Bulk Menu Update (Replace entire menu)
-router.put("/:restaurant_id", categoryController.bulkUpdateMenu); // done
+// ========== BULK OPERATIONS (PUBLIC) ==========
+
+// Bulk Menu Update (Replace entire menu)
+router.put("/:restaurant_id", categoryController.bulkUpdateMenu);
 
 // Error handler for menu routes
 router.use((error, req, res, next) => {

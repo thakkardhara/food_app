@@ -1,5 +1,6 @@
 const categoryRepository = require('../repository/categoryRepository');
 const crypto = require('crypto');
+const { deleteMenuFile } = require('../configs/menuMulterConfig');
 
 class CategoryService {
   generateCategoryId() {
@@ -19,6 +20,7 @@ class CategoryService {
   }
 
   validateItemData(itemData) {
+    console.log('Validating item data:', itemData);
     const { name, price } = itemData;
     
     if (!name || name.trim().length < 2 || name.trim().length > 200) {
@@ -33,21 +35,10 @@ class CategoryService {
       throw new Error('Description cannot exceed 500 characters');
     }
     
-    if (itemData.photo && !this.isValidUrl(itemData.photo)) {
-      throw new Error('Invalid photo URL');
-    }
-    
     return true;
   }
 
-  isValidUrl(string) {
-    try {
-      new URL(string);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  // ========== CATEGORY OPERATIONS ==========
 
   async addCategory(restaurantId, name) {
     try {
@@ -131,7 +122,6 @@ class CategoryService {
       }
 
       if (updateData.items !== undefined) {
-        // If items array is provided, validate it
         if (!Array.isArray(updateData.items)) {
           throw new Error('Items must be an array');
         }
@@ -161,6 +151,14 @@ class CategoryService {
 
       // Check if category has items
       const items = category.items || [];
+      
+      // Delete all item images before deleting category
+      for (const item of items) {
+        if (item.photo && !item.photo.includes('default')) {
+          await deleteMenuFile(item.photo);
+        }
+      }
+
       if (items.length > 0) {
         throw new Error('Cannot delete category with items. Please delete all items first');
       }
@@ -175,6 +173,8 @@ class CategoryService {
       throw new Error(error.message);
     }
   }
+
+  // ========== ITEM OPERATIONS (WITH IMAGE HANDLING) ==========
 
   async addItemToCategory(restaurantId, categoryId, itemData) {
     try {
@@ -200,11 +200,11 @@ class CategoryService {
       // Generate item ID
       const itemId = this.generateItemId();
 
-      // Prepare item data
+      // Prepare item data (photo is already the file path from controller)
       const newItem = {
         item_id: itemId,
         name: itemData.name.trim(),
-        photo: itemData.photo || null,
+        photo: itemData.photo || null,  // File path or null
         price: parseFloat(itemData.price),
         description: itemData.description ? itemData.description.trim() : null,
         availability: itemData.availability !== undefined ? itemData.availability : true,
@@ -218,6 +218,8 @@ class CategoryService {
         item_id: itemId,
         category_id: categoryId,
         ...newItem,
+        // Return photo URL format for frontend
+        photo: newItem.photo ? `/${newItem.photo}` : null,
         message: 'Item added successfully'
       };
 
@@ -242,8 +244,10 @@ class CategoryService {
         throw new Error('Item not found');
       }
 
+      const existingItem = items[itemIndex];
       const allowedUpdates = {};
 
+      // Name validation
       if (updateData.name !== undefined) {
         if (!updateData.name || updateData.name.trim().length < 2) {
           throw new Error('Invalid item name');
@@ -262,6 +266,7 @@ class CategoryService {
         allowedUpdates.name = updateData.name.trim();
       }
 
+      // Price validation
       if (updateData.price !== undefined) {
         if (updateData.price < 0) {
           throw new Error('Invalid price. Price must be a positive number');
@@ -269,6 +274,7 @@ class CategoryService {
         allowedUpdates.price = parseFloat(updateData.price);
       }
 
+      // Description validation
       if (updateData.description !== undefined) {
         if (updateData.description && updateData.description.length > 500) {
           throw new Error('Description cannot exceed 500 characters');
@@ -276,13 +282,16 @@ class CategoryService {
         allowedUpdates.description = updateData.description ? updateData.description.trim() : null;
       }
 
+      // Photo handling (image update)
       if (updateData.photo !== undefined) {
-        if (updateData.photo && !this.isValidUrl(updateData.photo)) {
-          throw new Error('Invalid photo URL');
+        // If there's a new photo and old photo exists (not default), delete old one
+        if (updateData.photo && existingItem.photo && !existingItem.photo.includes('default')) {
+          await deleteMenuFile(existingItem.photo);
         }
         allowedUpdates.photo = updateData.photo;
       }
 
+      // Availability
       if (updateData.availability !== undefined) {
         allowedUpdates.availability = Boolean(updateData.availability);
       }
@@ -295,6 +304,8 @@ class CategoryService {
         item_id: itemId,
         category_id: categoryId,
         ...allowedUpdates,
+        // Return photo URL format for frontend
+        photo: allowedUpdates.photo ? `/${allowedUpdates.photo}` : existingItem.photo ? `/${existingItem.photo}` : null,
         message: 'Item updated successfully'
       };
 
@@ -313,10 +324,15 @@ class CategoryService {
 
       // Check if item exists
       const items = category.items || [];
-      const itemExists = items.some(item => item.item_id === itemId);
+      const item = items.find(item => item.item_id === itemId);
       
-      if (!itemExists) {
+      if (!item) {
         throw new Error('Item not found');
+      }
+
+      // Delete item's image if it exists (not default)
+      if (item.photo && !item.photo.includes('default')) {
+        await deleteMenuFile(item.photo);
       }
 
       await categoryRepository.deleteItem(restaurantId, categoryId, itemId);
@@ -329,6 +345,8 @@ class CategoryService {
       throw new Error(error.message);
     }
   }
+
+  // ========== GET OPERATIONS ==========
 
   async getFullMenu(restaurantId) {
     try {
@@ -347,7 +365,11 @@ class CategoryService {
           name: cat.name,
           display_order: cat.display_order,
           is_active: cat.is_active,
-          items: cat.items || []
+          items: (cat.items || []).map(item => ({
+            ...item,
+            // Format photo URL for frontend
+            photo: item.photo ? `/${item.photo}` : null
+          }))
         }))
       };
 
@@ -415,7 +437,11 @@ class CategoryService {
         name: category.name,
         display_order: category.display_order,
         is_active: category.is_active,
-        items: category.items || []
+        items: (category.items || []).map(item => ({
+          ...item,
+          // Format photo URL for frontend
+          photo: item.photo ? `/${item.photo}` : null
+        }))
       };
 
     } catch (error) {
