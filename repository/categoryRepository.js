@@ -8,7 +8,9 @@ class CategoryRepository {
     if (typeof value === "object") return value;
     if (typeof value === "string") {
       try {
-        return JSON.parse(value);
+        const parsed = JSON.parse(value);
+        // If parsed is null (JSON 'null'), return empty array
+        return Array.isArray(parsed) ? parsed : parsed ? parsed : [];
       } catch (err) {
         console.error(
           "Failed to parse items JSON (fallback to empty array):",
@@ -111,17 +113,26 @@ class CategoryRepository {
   }
 
   async updateCategory(restaurantId, categoryId, updateData) {
+    // Only allow explicit, safe fields to be updated to avoid accidental column overwrites
+    const allowedFields = new Set([
+      "name",
+      "items",
+      "display_order",
+      "is_active",
+    ]);
     const updates = [];
     const values = [];
 
-    // Build dynamic update query
     Object.keys(updateData).forEach((key) => {
-      if (updateData[key] !== undefined) {
+      if (allowedFields.has(key) && updateData[key] !== undefined) {
         updates.push(`${key} = ?`);
 
-        // Handle JSON fields
         if (key === "items") {
-          values.push(JSON.stringify(updateData[key]));
+          // Ensure items is an array before storing
+          const itemsVal = Array.isArray(updateData[key])
+            ? updateData[key]
+            : [];
+          values.push(JSON.stringify(itemsVal));
         } else {
           values.push(updateData[key]);
         }
@@ -129,10 +140,12 @@ class CategoryRepository {
     });
 
     if (updates.length === 0) {
+      // Nothing to update
       return null;
     }
 
     updates.push("updated_at = CURRENT_TIMESTAMP");
+    // restaurantId and categoryId correspond to the WHERE clause placeholders
     values.push(restaurantId, categoryId);
 
     const query = `
@@ -165,7 +178,11 @@ class CategoryRepository {
   async addItemToCategory(restaurantId, categoryId, newItem) {
     // First get current items
     const category = await this.findCategoryById(restaurantId, categoryId);
-    const items = category.items || [];
+    if (!category) {
+      throw new Error("Category not found");
+    }
+
+    const items = Array.isArray(category.items) ? category.items : [];
 
     // Add new item
     items.push(newItem);
@@ -193,13 +210,19 @@ class CategoryRepository {
   async updateItem(restaurantId, categoryId, itemId, updateData) {
     // Get current category
     const category = await this.findCategoryById(restaurantId, categoryId);
-    const items = category.items || [];
+    if (!category) {
+      throw new Error("Category not found");
+    }
+
+    const items = Array.isArray(category.items) ? category.items : [];
 
     // Find and update the item
     const itemIndex = items.findIndex((item) => item.item_id === itemId);
-    if (itemIndex !== -1) {
-      items[itemIndex] = { ...items[itemIndex], ...updateData };
+    if (itemIndex === -1) {
+      throw new Error("Item not found");
     }
+
+    items[itemIndex] = { ...items[itemIndex], ...updateData };
 
     // Update category with modified items array
     const query = `
@@ -224,7 +247,11 @@ class CategoryRepository {
   async deleteItem(restaurantId, categoryId, itemId) {
     // Get current category
     const category = await this.findCategoryById(restaurantId, categoryId);
-    const items = category.items || [];
+    if (!category) {
+      throw new Error("Category not found");
+    }
+
+    const items = Array.isArray(category.items) ? category.items : [];
 
     // Remove the item
     const filteredItems = items.filter((item) => item.item_id !== itemId);

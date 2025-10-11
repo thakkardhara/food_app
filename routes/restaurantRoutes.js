@@ -87,26 +87,34 @@ router.get(
   }
 );
 
-router.use(authenticateToken);
+// Middleware: skip authentication for GET requests, require for others
+function authUnlessGet(req, res, next) {
+  if (req.method === "GET") return next();
+  return authenticateToken(req, res, next);
+}
 
+// Apply middleware that allows public GET endpoints but protects other methods
+router.use(authUnlessGet);
+
+// Settings endpoint (GET remains public because of authUnlessGet)
 router.get("/settings", restaurantController.getSettings);
 
-// Update all settings at once
+// Update settings (protected)
 router.patch("/settings", restaurantController.updateSettings);
 
-// Toggle online/offline status
+// Toggle online/offline status (protected)
 router.patch("/toggle-online", restaurantController.toggleOnlineStatus);
 
-// Toggle card payment
+// Toggle card payment (protected)
 router.patch("/toggle-card-payment", restaurantController.toggleCardPayment);
 
-// Toggle cash payment
+// Toggle cash payment (protected)
 router.patch("/toggle-cash-payment", restaurantController.toggleCashPayment);
 
-// Toggle delivery service
+// Toggle delivery service (protected)
 router.patch("/toggle-delivery", restaurantController.toggleDelivery);
 
-// Toggle takeaway service
+// Toggle takeaway service (protected)
 router.patch("/toggle-takeaway", restaurantController.toggleTakeaway);
 
 router.use((error, req, res, next) => {
