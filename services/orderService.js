@@ -93,15 +93,15 @@ class OrderService {
     }
 
     // Calculate and verify total price
-    const calculatedTotal = orderData.items.reduce((sum, item) => {
-      return sum + item.price * item.quantity;
-    }, 0);
+    // const calculatedTotal = orderData.items.reduce((sum, item) => {
+    //   return sum + item.price * item.quantity;
+    // }, 0);
 
-    if (Math.abs(calculatedTotal - orderData.total_price) > 0.01) {
-      errors.push(
-        `Total price mismatch. Expected: ${calculatedTotal}, Received: ${orderData.total_price}`
-      );
-    }
+    // if (Math.abs(calculatedTotal - orderData.total_price) > 0.01) {
+    //   errors.push(
+    //     `Total price mismatch. Expected: ${calculatedTotal}, Received: ${orderData.total_price}`
+    //   );
+    // }
 
     if (errors.length > 0) {
       throw new Error(errors.join(", "));
