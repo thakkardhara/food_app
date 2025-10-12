@@ -49,113 +49,113 @@ class RestaurantService {
     );
   }
 
- async registerRestaurantByAdmin(restaurantData) {
-  try {
-    const {
-      name,
-      email,
-      phone,
-      location,
-      cuisine,
-      menu,
-      password,
-      profile_image,
-    } = restaurantData;
+  async registerRestaurantByAdmin(restaurantData) {
+    try {
+      const {
+        name,
+        email,
+        phone,
+        location,
+        cuisine,
+        menu,
+        password,
+        profile_image,
+      } = restaurantData;
 
-    // Validation
-    if (!name || !email || !phone || !password) {
-      throw new Error("Name, email, phone, and password are required");
-    }
-
-    if (!this.validateEmail(email)) {
-      throw new Error("Invalid email format");
-    }
-
-    if (!this.validatePhone(phone)) {
-      throw new Error("Phone must be 10 digits");
-    }
-
-    if (!this.validatePassword(password)) {
-      throw new Error("Password must be at least 6 characters");
-    }
-
-    // ✅ FIX: Parse location string to object (same as registerRestaurant method)
-    let parsedLocation = location;
-    if (typeof location === "string") {
-      try {
-        parsedLocation = JSON.parse(location);
-      } catch {
-        throw new Error("Invalid location format");
+      // Validation
+      if (!name || !email || !phone || !password) {
+        throw new Error("Name, email, phone, and password are required");
       }
-    }
-    
-    // ✅ FIX: Validate the parsed location
-    if (parsedLocation && !this.validateLocation(parsedLocation)) {
-      throw new Error("Invalid location coordinates");
-    }
 
-    // Check if email already exists
-    const existingRestaurant = await restaurantRepository.findByEmail(email);
-    if (existingRestaurant) {
-      throw new Error("Email already exists");
-    }
-
-    // Generate restaurant ID
-    const restaurant_id = this.generateRestaurantId();
-
-    // Set profile image or use default
-    const finalProfileImage = profile_image || getDefaultImage();
-
-    // ✅ FIX: Parse cuisine if it's a string
-    let parsedCuisine = cuisine || [];
-    if (typeof cuisine === "string") {
-      try {
-        parsedCuisine = JSON.parse(cuisine);
-      } catch {
-        parsedCuisine = [];
+      if (!this.validateEmail(email)) {
+        throw new Error("Invalid email format");
       }
-    }
 
-    // ✅ FIX: Parse menu if it's a string
-    let parsedMenu = menu || [];
-    if (typeof menu === "string") {
-      try {
-        parsedMenu = JSON.parse(menu);
-      } catch {
-        parsedMenu = [];
+      if (!this.validatePhone(phone)) {
+        throw new Error("Phone must be 10 digits");
       }
+
+      if (!this.validatePassword(password)) {
+        throw new Error("Password must be at least 6 characters");
+      }
+
+      // ✅ FIX: Parse location string to object (same as registerRestaurant method)
+      let parsedLocation = location;
+      if (typeof location === "string") {
+        try {
+          parsedLocation = JSON.parse(location);
+        } catch {
+          throw new Error("Invalid location format");
+        }
+      }
+
+      // ✅ FIX: Validate the parsed location
+      if (parsedLocation && !this.validateLocation(parsedLocation)) {
+        throw new Error("Invalid location coordinates");
+      }
+
+      // Check if email already exists
+      const existingRestaurant = await restaurantRepository.findByEmail(email);
+      if (existingRestaurant) {
+        throw new Error("Email already exists");
+      }
+
+      // Generate restaurant ID
+      const restaurant_id = this.generateRestaurantId();
+
+      // Set profile image or use default
+      const finalProfileImage = profile_image || getDefaultImage();
+
+      // ✅ FIX: Parse cuisine if it's a string
+      let parsedCuisine = cuisine || [];
+      if (typeof cuisine === "string") {
+        try {
+          parsedCuisine = JSON.parse(cuisine);
+        } catch {
+          parsedCuisine = [];
+        }
+      }
+
+      // ✅ FIX: Parse menu if it's a string
+      let parsedMenu = menu || [];
+      if (typeof menu === "string") {
+        try {
+          parsedMenu = JSON.parse(menu);
+        } catch {
+          parsedMenu = [];
+        }
+      }
+
+      // Prepare data for storage
+      const dataToStore = {
+        restaurant_id,
+        name,
+        email,
+        phone,
+        password,
+        latitude: parsedLocation?.latitude || null, // ✅ Now uses parsedLocation
+        longitude: parsedLocation?.longitude || null, // ✅ Now uses parsedLocation
+        cuisine: parsedCuisine,
+        menu: parsedMenu,
+        profile_image: finalProfileImage,
+        status: "active",
+        created_by: "admin",
+      };
+
+      await restaurantRepository.create(dataToStore);
+
+      return {
+        restaurant_id,
+        status: "active",
+        message: "Restaurant registered successfully",
+        profile_image: `/${finalProfileImage}`,
+        Email: email,
+        Pass: password,
+      };
+    } catch (error) {
+      throw new Error(error.message);
     }
-
-    // Prepare data for storage
-    const dataToStore = {
-      restaurant_id,
-      name,
-      email,
-      phone,
-      password,
-      latitude: parsedLocation?.latitude || null,  // ✅ Now uses parsedLocation
-      longitude: parsedLocation?.longitude || null, // ✅ Now uses parsedLocation
-      cuisine: parsedCuisine,
-      menu: parsedMenu,
-      profile_image: finalProfileImage,
-      status: "active",
-      created_by: "admin",
-    };
-
-    await restaurantRepository.create(dataToStore);
-
-    return {
-      restaurant_id,
-      status: "active",
-      message: "Restaurant registered successfully",
-      profile_image: `/${finalProfileImage}`,
-      Email: email,
-      Pass: password,
-    };
-  } catch (error) {
-    throw new Error(error.message);
   }
-}
 
   async registerRestaurant(restaurantData) {
     try {
@@ -186,19 +186,19 @@ class RestaurantService {
       if (!this.validatePassword(password)) {
         throw new Error("Password must be at least 6 characters");
       }
-  let parsedLocation = location;
-    if (typeof location === "string") {
-      try {
-        parsedLocation = JSON.parse(location);
-      } catch {
-        throw new Error("Invalid location format");
+      let parsedLocation = location;
+      if (typeof location === "string") {
+        try {
+          parsedLocation = JSON.parse(location);
+        } catch {
+          throw new Error("Invalid location format");
+        }
       }
-    }
-    
-    // ✅ FIX: Validate the parsed location
-    if (parsedLocation && !this.validateLocation(parsedLocation)) {
-      throw new Error("Invalid location coordinates");
-    }
+
+      // ✅ FIX: Validate the parsed location
+      if (parsedLocation && !this.validateLocation(parsedLocation)) {
+        throw new Error("Invalid location coordinates");
+      }
 
       // Check if email already exists
       const existingRestaurant = await restaurantRepository.findByEmail(email);
@@ -452,12 +452,12 @@ class RestaurantService {
       }
 
       // Check restaurant status
-      if (
-        restaurant.status === "pending_review" ||
-        restaurant.status === "pending"
-      ) {
-        throw new Error("Account pending approval");
-      }
+      // if (
+      //   restaurant.status === "pending_review" ||
+      //   restaurant.status === "pending"
+      // ) {
+      //   throw new Error("Account pending approval");
+      // }
 
       if (
         restaurant.status === "disabled" ||

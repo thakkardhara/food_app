@@ -75,17 +75,13 @@ router.patch(
 
 router.get("/profile", authenticateToken, restaurantController.getProfile);
 
-router.get(
-  "/dashboard",
-  authenticateToken,
-  activeRestaurantOnly,
-  (req, res) => {
-    res.json({
-      message: "Welcome to restaurant dashboard",
-      restaurant: req.restaurant,
-    });
-  }
-);
+router.get("/dashboard", authenticateToken, (req, res) => {
+  // Allow restaurants to view dashboard even if their account isn't 'active'
+  res.json({
+    message: "Welcome to restaurant dashboard",
+    restaurant: req.restaurant,
+  });
+});
 
 // Middleware: skip authentication for GET requests, require for others
 function authUnlessGet(req, res, next) {

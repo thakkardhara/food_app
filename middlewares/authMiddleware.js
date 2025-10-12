@@ -1,23 +1,23 @@
-const jwt = require('jsonwebtoken');
-const restaurantService = require('../services/restaurantService');
+const jwt = require("jsonwebtoken");
+const restaurantService = require("../services/restaurantService");
 
 class AuthMiddleware {
   async authenticateToken(req, res, next) {
     try {
       // Get token from Authorization header
       const authHeader = req.headers.authorization;
-      
+
       if (!authHeader) {
-        return res.status(401).json({ error: 'Access token required' });
+        return res.status(401).json({ error: "Access token required" });
       }
 
       // Extract token (format: "Bearer TOKEN")
-      const token = authHeader.startsWith('Bearer ') 
-        ? authHeader.substring(7) 
+      const token = authHeader.startsWith("Bearer ")
+        ? authHeader.substring(7)
         : authHeader;
 
       if (!token) {
-        return res.status(401).json({ error: 'Invalid token format' });
+        return res.status(401).json({ error: "Invalid token format" });
       }
 
       // Verify JWT token
@@ -25,53 +25,72 @@ class AuthMiddleware {
       try {
         decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
       } catch (jwtError) {
-        if (jwtError.name === 'TokenExpiredError') {
-          return res.status(401).json({ error: 'Token expired' });
+        if (jwtError.name === "TokenExpiredError") {
+          return res.status(401).json({ error: "Token expired" });
         }
-        if (jwtError.name === 'JsonWebTokenError') {
-          return res.status(401).json({ error: 'Invalid token' });
+        if (jwtError.name === "JsonWebTokenError") {
+          return res.status(401).json({ error: "Invalid token" });
         }
         throw jwtError;
       }
 
       // Validate token payload
       if (!decoded.restaurant_id || !decoded.email) {
-        return res.status(401).json({ error: 'Invalid token payload' });
+        return res.status(401).json({ error: "Invalid token payload" });
       }
 
       // Verify restaurant exists and is active
-      const restaurant = await restaurantService.getRestaurantByToken(decoded.restaurant_id);
-      
+      const restaurant = await restaurantService.getRestaurantByToken(
+        decoded.restaurant_id
+      );
+
       if (!restaurant) {
-        return res.status(401).json({ error: 'Restaurant not found' });
+        return res.status(401).json({ error: "Restaurant not found" });
       }
 
-      if (restaurant.status === 'disabled') {
-        return res.status(403).json({ error: 'Account disabled. Contact support' });
+      if (restaurant.status === "disabled") {
+        return res
+          .status(403)
+          .json({ error: "Account disabled. Contact support" });
       }
 
-      if (restaurant.status === 'pending_review') {
-        return res.status(403).json({ error: 'Account pending approval' });
+      if (restaurant.status === "pending_review") {
+        return res.status(403).json({ error: "Account pending approval" });
       }
 
-      // Add restaurant info to request object
+      // Add restaurant info to request object based on DB record (ensure up-to-date status)
+      // Safely parse cuisine (may be stored as JSON string)
+      let cuisineParsed = [];
+      try {
+        if (restaurant.cuisine) {
+          cuisineParsed =
+            typeof restaurant.cuisine === "string"
+              ? JSON.parse(restaurant.cuisine || "[]")
+              : restaurant.cuisine || [];
+        }
+      } catch (err) {
+        console.error("Failed to parse cuisine for auth middleware:", err);
+        cuisineParsed = [];
+      }
+
       req.restaurant = {
-        restaurant_id: decoded.restaurant_id,
-        email: decoded.email,
-        name: decoded.name,
-        status: decoded.status
+        restaurant_id: restaurant.restaurant_id || decoded.restaurant_id,
+        email: restaurant.email || decoded.email,
+        name: restaurant.name || decoded.name,
+        status: restaurant.status || decoded.status,
+        phone: restaurant.phone || null,
+        cuisine: cuisineParsed,
       };
 
       next();
-
     } catch (error) {
-      console.error('Authentication error:', error.message);
-      
-      if (error.message === 'Restaurant not found') {
-        return res.status(401).json({ error: 'Restaurant not found' });
+      console.error("Authentication error:", error.message);
+
+      if (error.message === "Restaurant not found") {
+        return res.status(401).json({ error: "Restaurant not found" });
       }
-      
-      return res.status(500).json({ error: 'Internal server error' });
+
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -80,21 +99,22 @@ class AuthMiddleware {
     try {
       // This middleware should be used after authenticateToken
       if (!req.restaurant) {
-        return res.status(401).json({ error: 'Authentication required' });
+        return res.status(401).json({ error: "Authentication required" });
       }
 
       // Check if restaurant was created by admin (you can add admin role field to DB)
-      const restaurant = await restaurantService.getRestaurantByToken(req.restaurant.restaurant_id);
-      
-      if (restaurant.created_by !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
+      const restaurant = await restaurantService.getRestaurantByToken(
+        req.restaurant.restaurant_id
+      );
+
+      if (restaurant.created_by !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
       }
 
       next();
-
     } catch (error) {
-      console.error('Admin check error:', error.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      console.error("Admin check error:", error.message);
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
 
@@ -102,82 +122,80 @@ class AuthMiddleware {
   async activeRestaurantOnly(req, res, next) {
     try {
       if (!req.restaurant) {
-        return res.status(401).json({ error: 'Authentication required' });
+        return res.status(401).json({ error: "Authentication required" });
       }
 
-      if (req.restaurant.status !== 'active') {
-        return res.status(403).json({ 
-          error: req.restaurant.status === 'pending_review' 
-            ? 'Account pending approval' 
-            : 'Account not active' 
+      if (req.restaurant.status !== "active") {
+        return res.status(403).json({
+          error:
+            req.restaurant.status === "pending_review"
+              ? "Account pending approval"
+              : "Account not active",
         });
       }
 
       next();
-
     } catch (error) {
-      console.error('Active status check error:', error.message);
-      return res.status(500).json({ error: 'Internal server error' });
+      console.error("Active status check error:", error.message);
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
   async authenticateAdmin(req, res, next) {
-  try {
-    // Get token from Authorization header
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      return res.status(401).json({ error: 'Access token required' });
-    }
-
-    // Extract token (format: "Bearer TOKEN")
-    const token = authHeader.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : authHeader;
-
-    if (!token) {
-      return res.status(401).json({ error: 'Invalid token format' });
-    }
-
-    // Verify JWT token
-    let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    } catch (jwtError) {
-      if (jwtError.name === 'TokenExpiredError') {
-        return res.status(401).json({ error: 'Token expired' });
+      // Get token from Authorization header
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader) {
+        return res.status(401).json({ error: "Access token required" });
       }
-      if (jwtError.name === 'JsonWebTokenError') {
-        return res.status(401).json({ error: 'Invalid token' });
+
+      // Extract token (format: "Bearer TOKEN")
+      const token = authHeader.startsWith("Bearer ")
+        ? authHeader.substring(7)
+        : authHeader;
+
+      if (!token) {
+        return res.status(401).json({ error: "Invalid token format" });
       }
-      throw jwtError;
+
+      // Verify JWT token
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+      } catch (jwtError) {
+        if (jwtError.name === "TokenExpiredError") {
+          return res.status(401).json({ error: "Token expired" });
+        }
+        if (jwtError.name === "JsonWebTokenError") {
+          return res.status(401).json({ error: "Invalid token" });
+        }
+        throw jwtError;
+      }
+
+      // Check if user is admin
+      if (decoded.role !== "admin") {
+        return res.status(403).json({ error: "Access denied. Admin only." });
+      }
+
+      // Validate token payload
+      if (!decoded.admin_id || !decoded.email) {
+        return res.status(401).json({ error: "Invalid token payload" });
+      }
+
+      // Add admin info to request object
+      req.admin = {
+        admin_id: decoded.admin_id,
+        email: decoded.email,
+        name: decoded.name,
+        role: decoded.role,
+      };
+
+      next();
+    } catch (error) {
+      console.error("Admin authentication error:", error.message);
+      return res.status(500).json({ error: "Authentication failed" });
     }
-
-    // Check if user is admin
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admin only.' });
-    }
-
-    // Validate token payload
-    if (!decoded.admin_id || !decoded.email) {
-      return res.status(401).json({ error: 'Invalid token payload' });
-    }
-
-    // Add admin info to request object
-    req.admin = {
-      admin_id: decoded.admin_id,
-      email: decoded.email,
-      name: decoded.name,
-      role: decoded.role
-    };
-
-    next();
-
-  } catch (error) {
-    console.error('Admin authentication error:', error.message);
-    return res.status(500).json({ error: 'Authentication failed' });
   }
-}
-
 }
 
 const authMiddleware = new AuthMiddleware();
@@ -185,6 +203,7 @@ const authMiddleware = new AuthMiddleware();
 module.exports = {
   authenticateToken: authMiddleware.authenticateToken.bind(authMiddleware),
   adminOnly: authMiddleware.adminOnly.bind(authMiddleware),
-  activeRestaurantOnly: authMiddleware.activeRestaurantOnly.bind(authMiddleware),
-  authenticateAdmin: authMiddleware.authenticateAdmin.bind(authMiddleware)
+  activeRestaurantOnly:
+    authMiddleware.activeRestaurantOnly.bind(authMiddleware),
+  authenticateAdmin: authMiddleware.authenticateAdmin.bind(authMiddleware),
 };
