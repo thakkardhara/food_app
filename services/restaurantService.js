@@ -611,6 +611,13 @@ class RestaurantService {
           longitude: r.longitude,
           cuisine,
           status: r.status,
+          settings: {
+            card_payment_enabled: !!r.card_payment_enabled,
+            cash_payment_enabled: !!r.cash_payment_enabled,
+            delivery_enabled: !!r.delivery_enabled,
+            takeaway_enabled: !!r.takeaway_enabled,
+            is_online: !!r.is_online,
+          },
           categories,
         };
       });
