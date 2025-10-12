@@ -615,7 +615,37 @@ class RestaurantService {
         };
       });
 
-      return normalized;
+      // Attach delivery ranges for each restaurant
+      try {
+        const deliveryRepository = require("../repository/deliveryRepository");
+        // Fetch ranges for all restaurants in parallel
+        const rangesArrays = await Promise.all(
+          normalized.map((r) =>
+            deliveryRepository.getRangesByRestaurant(r.restaurant_id)
+          )
+        );
+
+        const enriched = normalized.map((r, idx) => {
+          const rows = rangesArrays[idx] || [];
+          const ranges = rows.map((row) => ({
+            delivery_id: row.delivery_id,
+            min_km: parseFloat(row.min_km),
+            max_km: parseFloat(row.max_km),
+            charge: parseFloat(row.charge),
+          }));
+
+          return {
+            ...r,
+            delivery: { ranges },
+          };
+        });
+
+        return enriched;
+      } catch (err) {
+        // If delivery lookup fails, return normalized restaurants without delivery
+        console.error("Failed to attach delivery ranges:", err.message);
+        return normalized;
+      }
     } catch (error) {
       throw new Error(error.message);
     }
