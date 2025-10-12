@@ -67,6 +67,13 @@ router.get("/getAllRestaurant", restaurantController.allRestaurants);
 
 router.post("/login", restaurantController.login);
 
+// Forgot password flow for restaurants
+// Send OTP to email
+router.post("/forgot-password", restaurantController.sendResetOtp);
+
+// Reset password using OTP
+router.post("/reset-password", restaurantController.resetPasswordWithOtp);
+
 router.patch(
   "/change-password",
   authenticateToken,

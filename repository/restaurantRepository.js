@@ -188,6 +188,30 @@ class RestaurantRepository {
       throw new Error(`Database error: ${error.message}`);
     }
   }
+
+  // Set OTP and expiry for forgot-password flow
+  async setOtpByEmail(email, otp, expiry) {
+    const query = `UPDATE restaurants SET otp = ?, otp_expiry = ? WHERE email = ?`;
+    try {
+      const [result] = await pool.execute(query, [otp, expiry, email]);
+      return result;
+    } catch (error) {
+      console.error("Error setting OTP:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  // Clear OTP after successful reset
+  async clearOtpByEmail(email) {
+    const query = `UPDATE restaurants SET otp = NULL, otp_expiry = NULL WHERE email = ?`;
+    try {
+      const [result] = await pool.execute(query, [email]);
+      return result;
+    } catch (error) {
+      console.error("Error clearing OTP:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
   async updateStatus(restaurantId, status) {
     const query =
       "UPDATE restaurants SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE restaurant_id = ?";

@@ -518,10 +518,104 @@ class RestaurantService {
     }
   }
 
+  // Forgot-password: send OTP to restaurant email
+  async sendResetOtp(email) {
+    try {
+      if (!email) throw new Error("Email is required");
+
+      const restaurant = await restaurantRepository.findByEmail(email);
+      if (!restaurant) throw new Error("Restaurant not found");
+
+      // Generate 6-digit OTP and expiry (15 minutes)
+      const otp = Math.floor(100000 + Math.random() * 900000);
+      const expiry = new Date(Date.now() + 15 * 60 * 1000);
+
+      await restaurantRepository.setOtpByEmail(email, otp, expiry);
+
+      // Send email
+      const sendMail = require("../utils/sendMail");
+      await sendMail({
+        to: email,
+        subject: "Your OTP for Restaurant Password Reset",
+        text: `Your OTP is ${otp}. It expires in 15 minutes.`,
+        html: `<p>Your OTP for password reset is: <b>${otp}</b><br/>It is valid for 15 minutes.</p>`,
+      });
+
+      return { message: "OTP sent successfully" };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  // Verify OTP and reset password
+  async resetPasswordWithOtp(email, otp, newPassword) {
+    try {
+      if (!email || !otp || !newPassword)
+        throw new Error("Email, OTP and newPassword are required");
+
+      const restaurant = await restaurantRepository.findByEmail(email);
+      if (!restaurant) throw new Error("Restaurant not found");
+
+      // Validate OTP and expiry
+      if (!restaurant.otp || String(restaurant.otp) !== String(otp)) {
+        throw new Error("Invalid OTP");
+      }
+
+      if (new Date() > new Date(restaurant.otp_expiry)) {
+        throw new Error("OTP expired");
+      }
+
+      // Update password and clear OTP
+      await restaurantRepository.updatePassword(email, newPassword);
+      await restaurantRepository.clearOtpByEmail(email);
+
+      return { message: "Password reset successfully" };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
   async getAllRestaurants() {
     try {
-      const restaurants = await restaurantRepository.getAllRestaurants();
-      return restaurants;
+      // Use repository method that also fetches categories and items
+      const restaurants =
+        await restaurantRepository.getAllRestaurantsWithCategories();
+
+      // Normalize each restaurant and its categories/items for API
+      const normalized = restaurants.map((r) => {
+        const cuisine =
+          typeof r.cuisine === "string"
+            ? JSON.parse(r.cuisine || "[]")
+            : r.cuisine || [];
+
+        const categories = (r.categories || []).map((cat) => ({
+          category_id: cat.category_id,
+          name: cat.name,
+          display_order: cat.display_order,
+          is_active: cat.is_active,
+          items: (cat.items || []).map((item) => ({
+            ...item,
+            photo: item.photo ? `/${item.photo}` : null,
+          })),
+        }));
+
+        return {
+          restaurant_id: r.restaurant_id,
+          name: r.name,
+          email: r.email,
+          phone: r.phone,
+          profile_image: r.profile_image
+            ? `/${r.profile_image}`
+            : "/uploads/defaults/restaurant-default.png",
+          latitude: r.latitude,
+          longitude: r.longitude,
+          cuisine,
+          status: r.status,
+          categories,
+        };
+      });
+
+      return normalized;
     } catch (error) {
       throw new Error(error.message);
     }

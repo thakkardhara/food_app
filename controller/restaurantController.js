@@ -146,6 +146,47 @@ class RestaurantController {
       res.status(500).json({ error: "Internal server error" });
     }
   }
+
+  // Send OTP for password reset
+  async sendResetOtp(req, res) {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "Email is required" });
+
+      const result = await restaurantService.sendResetOtp(email);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Send reset OTP error:", error.message);
+      if (error.message === "Restaurant not found")
+        return res.status(404).json({ error: error.message });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  // Reset password using OTP
+  async resetPasswordWithOtp(req, res) {
+    try {
+      const { email, otp, new_password } = req.body;
+      if (!email || !otp || !new_password)
+        return res
+          .status(400)
+          .json({ error: "Email, otp and new_password are required" });
+
+      const result = await restaurantService.resetPasswordWithOtp(
+        email,
+        otp,
+        new_password
+      );
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Reset password error:", error.message);
+      if (error.message === "Restaurant not found")
+        return res.status(404).json({ error: error.message });
+      if (error.message === "Invalid OTP" || error.message === "OTP expired")
+        return res.status(400).json({ error: error.message });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
   async changePassword(req, res) {
     try {
       const { old_password, new_password } = req.body;
