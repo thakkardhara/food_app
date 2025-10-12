@@ -36,6 +36,9 @@ app.use("/api/restaurant", require("./routes/restaurantRoutes"));
 app.use("/api/user/order", require("./routes/ordersRoutes"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Delivery routes
+app.use("/api/delivery", require("./routes/deliveryRoutes"));
+
 // Add admin routes
 app.use("/api/admin", adminRoutes);
 http.listen(port, () => {
