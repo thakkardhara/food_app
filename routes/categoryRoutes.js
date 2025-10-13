@@ -2,8 +2,10 @@
 const express = require("express");
 const router = express.Router();
 const categoryController = require("../controller/categoryController");
-const { menuUpload, handleMenuUploadError } = require("../configs/menuMulterConfig");
-
+const {
+  menuUpload,
+  handleMenuUploadError,
+} = require("../configs/menuMulterConfig");
 
 // ========== PUBLIC ROUTES (No authentication) ==========
 
@@ -54,9 +56,23 @@ router.patch(
   categoryController.updateItem
 );
 
+// Also accept PUT for update (some clients/tools send PUT instead of PATCH)
+router.put(
+  "/:restaurant_id/category/:category_id/item/:item_id",
+  menuUpload.single("photo"),
+  handleMenuUploadError,
+  categoryController.updateItem
+);
+
 // Delete Item
 router.delete(
   "/:restaurant_id/category/:category_id/item/:item_id",
+  categoryController.deleteItem
+);
+
+// Support POST-based delete for clients that can't send DELETE
+router.post(
+  "/:restaurant_id/category/:category_id/item/:item_id/delete",
   categoryController.deleteItem
 );
 

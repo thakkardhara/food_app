@@ -1,10 +1,10 @@
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
 
 // Create uploads directory for menu items
-const uploadDir = 'uploads/menu-items';
+const uploadDir = "uploads/menu-items";
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -16,24 +16,26 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     // Generate unique filename
-    const uniqueSuffix = crypto.randomBytes(6).toString('hex');
+    const uniqueSuffix = crypto.randomBytes(6).toString("hex");
     const timestamp = Date.now();
     const ext = path.extname(file.originalname);
     const fileName = `item_${timestamp}_${uniqueSuffix}${ext}`;
     cb(null, fileName);
-  }
+  },
 });
 
 // File filter to accept only images
 const fileFilter = (req, file, cb) => {
   const allowedExtensions = /jpeg|jpg|png|gif|webp/;
-  const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+  const extname = allowedExtensions.test(
+    path.extname(file.originalname).toLowerCase()
+  );
   const mimetype = allowedExtensions.test(file.mimetype);
 
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Only image files (jpeg, jpg, png, gif, webp) are allowed'));
+    cb(new Error("Only image files (jpeg, jpg, png, gif, webp) are allowed"));
   }
 };
 
@@ -41,16 +43,18 @@ const fileFilter = (req, file, cb) => {
 const menuUpload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB max file size
+    fileSize: 5 * 1024 * 1024, // 5MB max file size
   },
-  fileFilter: fileFilter
+  fileFilter: fileFilter,
 });
 
 // Middleware for handling upload errors
 const handleMenuUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File size too large. Maximum 5MB allowed' });
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res
+        .status(400)
+        .json({ error: "File size too large. Maximum 5MB allowed" });
     }
     return res.status(400).json({ error: err.message });
   } else if (err) {
@@ -62,9 +66,21 @@ const handleMenuUploadError = (err, req, res, next) => {
 // Function to delete uploaded file
 const deleteMenuFile = async (filePath) => {
   try {
-    if (filePath && fs.existsSync(filePath)) {
-      await fs.promises.unlink(filePath);
-      console.log(`Deleted file: ${filePath}`);
+    if (!filePath) return;
+
+    // Normalize path: convert backslashes to slashes and strip leading slash if present
+    let normalized = filePath.replace(/\\/g, "/");
+    if (normalized.startsWith("/")) normalized = normalized.slice(1);
+
+    if (fs.existsSync(normalized)) {
+      await fs.promises.unlink(normalized);
+      console.log(`Deleted file: ${normalized}`);
+    } else {
+      // Try original path as a fallback (in case stored path is relative differently)
+      if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+        console.log(`Deleted file: ${filePath}`);
+      }
     }
   } catch (error) {
     console.error(`Error deleting file ${filePath}:`, error.message);
@@ -73,12 +89,12 @@ const deleteMenuFile = async (filePath) => {
 
 // Default image for menu items (optional)
 const getDefaultMenuImage = () => {
-  return 'uploads/defaults/item-default.png';
+  return "uploads/defaults/item-default.png";
 };
 
 module.exports = {
   menuUpload,
   handleMenuUploadError,
   deleteMenuFile,
-  getDefaultMenuImage
+  getDefaultMenuImage,
 };
