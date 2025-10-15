@@ -187,7 +187,7 @@ class OrderService {
     eta_seconds = null
   ) {
     try {
-      // Validate status value
+      // Validate status
       const validStatuses = Object.values(this.ORDER_STATUS);
       if (!validStatuses.includes(newStatus)) {
         throw new Error(
@@ -195,13 +195,11 @@ class OrderService {
         );
       }
 
-      // Get current order
+      // Get order
       const order = await orderRepository.findOrderById(orderId);
-      if (!order) {
-        throw new Error("Order not found");
-      }
+      if (!order) throw new Error("Order not found");
 
-      // Check if status transition is valid
+      // Prevent invalid transitions
       if (order.status === newStatus) {
         throw new Error(`Order is already in ${newStatus} status`);
       }
@@ -215,46 +213,29 @@ class OrderService {
       // Update status
       await orderRepository.updateOrderStatus(orderId, newStatus);
 
-      // Add to order history
+      // Log order history
       await orderRepository.createOrderHistory(
         orderId,
         newStatus,
         `Status updated to ${newStatus}`
       );
 
-      // If order is confirmed, set estimated delivery time
+      // If confirmed → save ETA as MM:SS string (no datetime logic)
       if (newStatus === this.ORDER_STATUS.CONFIRMED) {
-        const estimatedTime = new Date();
+        const m = eta_minutes ? String(eta_minutes).padStart(2, "0") : "00";
+        const s = eta_seconds ? String(eta_seconds).padStart(2, "0") : "00";
+        const etaString = `${m}:${s}`;
 
-        // Use user-provided ETA if available (minutes and seconds), otherwise default to 45 minutes
-        const minutesToAdd = Number.isFinite(Number(eta_minutes))
-          ? parseInt(eta_minutes, 10)
-          : 45;
-        const secondsToAdd = Number.isFinite(Number(eta_seconds))
-          ? parseInt(eta_seconds, 10)
-          : 0;
-
-        // Add minutes and seconds
-        estimatedTime.setMinutes(estimatedTime.getMinutes() + minutesToAdd);
-        estimatedTime.setSeconds(estimatedTime.getSeconds() + secondsToAdd);
-
-        // Format to MySQL DATETIME (local time)
-        const pad = (n) => String(n).padStart(2, "0");
-        const mysqlDatetime = `${estimatedTime.getFullYear()}-${pad(
-          estimatedTime.getMonth() + 1
-        )}-${pad(estimatedTime.getDate())} ${pad(
-          estimatedTime.getHours()
-        )}:${pad(estimatedTime.getMinutes())}:${pad(
-          estimatedTime.getSeconds()
-        )}`;
-
-        await orderRepository.updateDeliveryTime(orderId, mysqlDatetime);
+        await orderRepository.updateDeliveryTime(orderId, etaString);
       }
 
+      // Return updated order
+      const refreshed = await orderRepository.findOrderById(orderId);
       return {
         order_id: orderId,
         status: newStatus,
         message: "Order status updated successfully",
+        order: refreshed || null,
       };
     } catch (error) {
       throw new Error(error.message);
