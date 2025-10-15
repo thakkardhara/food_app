@@ -469,6 +469,18 @@ class RestaurantService {
       // Generate JWT token
       const token = this.generateJWTToken(restaurant);
 
+      // Fetch settings to include in login response
+      let settings = {};
+      try {
+        const repoSettings = await restaurantRepository.getSettings(
+          restaurant.restaurant_id
+        );
+        settings = repoSettings || {};
+      } catch (err) {
+        // ignore settings errors and proceed with login
+        console.error("Failed to load settings for login:", err.message);
+      }
+
       return {
         restaurant_id: restaurant.restaurant_id,
         token,
@@ -476,6 +488,7 @@ class RestaurantService {
         profile_image: restaurant.profile_image
           ? `/${restaurant.profile_image}`
           : "/uploads/defaults/restaurant-default.png",
+        settings,
       };
     } catch (error) {
       throw new Error(error.message);

@@ -99,8 +99,8 @@ function authUnlessGet(req, res, next) {
 // Apply middleware that allows public GET endpoints but protects other methods
 router.use(authUnlessGet);
 
-// Settings endpoint (GET remains public because of authUnlessGet)
-router.get("/settings", restaurantController.getSettings);
+// Settings endpoint - require authentication to populate req.restaurant
+router.get("/settings", authenticateToken, restaurantController.getSettings);
 
 // Update settings (protected)
 router.patch("/settings", restaurantController.updateSettings);

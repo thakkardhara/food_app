@@ -74,9 +74,21 @@ class OrderRepository {
         r.latitude AS restaurant_latitude,
         r.longitude AS restaurant_longitude,
         r.cuisine AS restaurant_cuisine,
-        r.status AS restaurant_status
+        r.status AS restaurant_status,
+        ua.id AS user_address_id,
+        ua.addressline1 AS user_addressline1,
+        ua.addressline2 AS user_addressline2,
+        ua.pincode AS user_pincode,
+        ua.city AS user_city,
+        ua.state AS user_state,
+        ua.country AS user_country,
+        ua.area AS user_area,
+        ua.delivery_instructions AS user_delivery_instructions,
+        ua.latitude AS user_latitude,
+        ua.longitude AS user_longitude
       FROM orders o
       LEFT JOIN restaurants r ON o.restaurant_id = r.restaurant_id
+      LEFT JOIN user_address ua ON o.location_id = ua.id
       WHERE o.order_id = ?
       LIMIT 1
     `;
@@ -124,25 +136,67 @@ class OrderRepository {
         email: row.restaurant_email || null,
         phone: row.restaurant_phone || null,
         profile_image: row.restaurant_profile_image || null,
-        latitude: row.restaurant_latitude || null,
-        longitude: row.restaurant_longitude || null,
+        latitude:
+          row.restaurant_latitude !== null &&
+          row.restaurant_latitude !== undefined
+            ? parseFloat(row.restaurant_latitude)
+            : null,
+        longitude:
+          row.restaurant_longitude !== null &&
+          row.restaurant_longitude !== undefined
+            ? parseFloat(row.restaurant_longitude)
+            : null,
         cuisine,
         status: row.restaurant_status || null,
       };
 
-      // remove the raw restaurant_* fields from the result to avoid duplication
-      const result = { ...row, items, restaurant };
-      delete result.r_restaurant_id;
-      delete result.restaurant_name;
-      delete result.restaurant_email;
-      delete result.restaurant_phone;
-      delete result.restaurant_profile_image;
-      delete result.restaurant_latitude;
-      delete result.restaurant_longitude;
-      delete result.restaurant_cuisine;
-      delete result.restaurant_status;
+      // build user_location if available
+      const user_location = row.user_address_id
+        ? {
+            id: row.user_address_id,
+            addressline1: row.user_addressline1 || null,
+            addressline2: row.user_addressline2 || null,
+            pincode: row.user_pincode || null,
+            city: row.user_city || null,
+            state: row.user_state || null,
+            country: row.user_country || null,
+            area: row.user_area || null,
+            delivery_instructions: row.user_delivery_instructions || null,
+            latitude:
+              row.user_latitude !== null && row.user_latitude !== undefined
+                ? parseFloat(row.user_latitude)
+                : null,
+            longitude:
+              row.user_longitude !== null && row.user_longitude !== undefined
+                ? parseFloat(row.user_longitude)
+                : null,
+          }
+        : null;
 
-      return result;
+      // remove the raw joined fields from the result to avoid duplication
+      const cleaned = { ...row, items };
+      delete cleaned.r_restaurant_id;
+      delete cleaned.restaurant_name;
+      delete cleaned.restaurant_email;
+      delete cleaned.restaurant_phone;
+      delete cleaned.restaurant_profile_image;
+      delete cleaned.restaurant_latitude;
+      delete cleaned.restaurant_longitude;
+      delete cleaned.restaurant_cuisine;
+      delete cleaned.restaurant_status;
+      delete cleaned.user_address_id;
+      delete cleaned.user_addressline1;
+      delete cleaned.user_addressline2;
+      delete cleaned.user_pincode;
+      delete cleaned.user_city;
+      delete cleaned.user_state;
+      delete cleaned.user_country;
+      delete cleaned.user_area;
+      delete cleaned.user_delivery_instructions;
+      delete cleaned.user_latitude;
+      delete cleaned.user_longitude;
+
+      return { ...cleaned, restaurant, user_location };
     } catch (error) {
       console.error("Error finding order:", error);
       throw new Error(`Database error: ${error.message}`);
@@ -199,9 +253,14 @@ class OrderRepository {
 
   async findOrdersByUser(userId, filters = {}) {
     let query = `
-    SELECT o.*, r.name as restaurant_name 
+    SELECT o.*, 
+      r.name as restaurant_name, r.phone as restaurant_phone, r.latitude as restaurant_latitude, r.longitude as restaurant_longitude,
+      ua.id as user_address_id, ua.addressline1 as user_addressline1, ua.addressline2 as user_addressline2, ua.pincode as user_pincode,
+      ua.city as user_city, ua.state as user_state, ua.country as user_country, ua.area as user_area,
+      ua.delivery_instructions as user_delivery_instructions, ua.latitude as user_latitude, ua.longitude as user_longitude
     FROM orders o
     JOIN restaurants r ON o.restaurant_id = r.restaurant_id
+    LEFT JOIN user_address ua ON o.location_id = ua.id
     WHERE o.user_id = ?
   `;
 
@@ -248,9 +307,53 @@ class OrderRepository {
           }
         }
 
+        // Build restaurant and user_location objects
+        const restaurant = {
+          name: row.restaurant_name || null,
+          phone: row.restaurant_phone || null,
+          latitude: row.restaurant_latitude || null,
+          longitude: row.restaurant_longitude || null,
+        };
+
+        const user_location = row.user_address_id
+          ? {
+              id: row.user_address_id,
+              addressline1: row.user_addressline1 || null,
+              addressline2: row.user_addressline2 || null,
+              pincode: row.user_pincode || null,
+              city: row.user_city || null,
+              state: row.user_state || null,
+              country: row.user_country || null,
+              area: row.user_area || null,
+              delivery_instructions: row.user_delivery_instructions || null,
+              latitude: row.user_latitude || null,
+              longitude: row.user_longitude || null,
+            }
+          : null;
+
+        // Remove the joined address/restaurant raw fields to avoid duplication
+        const cleaned = { ...row, items };
+        delete cleaned.restaurant_name;
+        delete cleaned.restaurant_phone;
+        delete cleaned.restaurant_latitude;
+        delete cleaned.restaurant_longitude;
+        delete cleaned.user_address_id;
+        delete cleaned.user_addressline1;
+        delete cleaned.user_addressline2;
+        delete cleaned.user_pincode;
+        delete cleaned.user_city;
+        delete cleaned.user_state;
+        delete cleaned.user_country;
+        delete cleaned.user_area;
+        delete cleaned.user_delivery_instructions;
+        delete cleaned.user_latitude;
+        delete cleaned.user_longitude;
+
         return {
-          ...row,
+          ...cleaned,
           items,
+          restaurant,
+          user_location,
         };
       });
     } catch (error) {

@@ -140,6 +140,17 @@ class OrderController {
       res.status(200).json(orders);
     } catch (error) {
       console.error("Get user orders error:", error.message);
+      // If DB host unreachable or network error, return 503 to indicate service unavailable
+      if (
+        error.code === "EHOSTUNREACH" ||
+        (error.message && error.message.includes("EHOSTUNREACH")) ||
+        (error.message && error.message.includes("connect EHOSTUNREACH"))
+      ) {
+        return res
+          .status(503)
+          .json({ error: "Database unreachable. Please try again later." });
+      }
+
       res.status(500).json({ error: "Internal server error" });
     }
   }
