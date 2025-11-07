@@ -34,6 +34,7 @@ app.use("/api", require("./routes/addressRoutes"));
 app.use("/api/restaurant/menu", require("./routes/categoryRoutes"));
 app.use("/api/restaurant", require("./routes/restaurantRoutes"));
 app.use("/api/user/order", require("./routes/ordersRoutes"));
+app.use("/api/collection-details", require("./routes/collectionDetailsRoutes"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Delivery routes
