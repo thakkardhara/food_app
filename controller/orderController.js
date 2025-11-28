@@ -184,13 +184,15 @@ class OrderController {
     }
   }
 
-  // 6. Cancel Order
+  // 6. Cancel Order (User can cancel their orders without authentication)
   async cancelOrder(req, res) {
     try {
       const { order_id } = req.params;
       const { reason } = req.body;
 
-      // Get order to check permissions
+      console.log('📝 Cancel Order Request:', { order_id, reason });
+
+      // Get order
       const order = await orderService.getOrderById(order_id);
 
       if (!order) {
@@ -204,19 +206,14 @@ class OrderController {
         });
       }
 
-      // Restaurant or user can cancel
-      if (req.restaurant) {
-        if (order.restaurant_id !== req.restaurant.restaurant_id) {
-          return res
-            .status(403)
-            .json({ error: "Unauthorized to cancel this order" });
-        }
-      }
-
+      // Cancel the order with reason
       const result = await orderService.cancelOrder(order_id, reason);
+      
+      console.log('✅ Order cancelled successfully:', result);
+      
       res.status(200).json(result);
     } catch (error) {
-      console.error("Cancel order error:", error.message);
+      console.error("❌ Cancel order error:", error.message);
 
       if (error.message === "Order not found") {
         return res.status(404).json({ error: error.message });

@@ -16,6 +16,9 @@ router.get('/:order_id', orderController.getOrderById);
 // 3. Get Orders by User (user sees all their orders)
 router.get('/user/:user_id', orderController.getOrdersByUser);
 
+// 4. Cancel Order (user can cancel their own orders)
+router.post('/:order_id/cancel', orderController.cancelOrder);
+
 
 /* ===============================
    RESTAURANT ENDPOINTS (Restricted)
@@ -24,15 +27,11 @@ router.get('/user/:user_id', orderController.getOrdersByUser);
 // Require authentication for all restaurant routes
 router.use(authenticateToken);
 
-// 4. Update Order Status (restaurant only)
+// 5. Update Order Status (restaurant only)
 router.patch('/:order_id/status', orderController.updateOrderStatus);
 
-// 5. Get Orders by Restaurant (no param, use token restaurant_id)
+// 6. Get Orders by Restaurant (no param, use token restaurant_id)
 router.get('/restaurant/orders', activeRestaurantOnly, orderController.getOrdersByRestaurant);
-
-
-// 6. Cancel Order (restaurant can cancel)
-router.post('/:order_id/cancel', orderController.cancelOrder);
 
 // 7. Get Order Statistics (restaurant analytics)
 router.get('/restaurant/:restaurant_id/stats', activeRestaurantOnly, orderController.getOrderStats);

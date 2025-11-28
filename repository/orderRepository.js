@@ -243,10 +243,12 @@ class OrderRepository {
     `;
 
     try {
+      console.log('🗄️ Executing DB query:', { orderId, reason });
       const [result] = await pool.execute(query, [reason, orderId]);
+      console.log('✅ DB Update Result:', { affectedRows: result.affectedRows });
       return result;
     } catch (error) {
-      console.error("Error updating cancellation reason:", error);
+      console.error("❌ Error updating cancellation reason:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }

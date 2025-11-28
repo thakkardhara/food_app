@@ -308,7 +308,11 @@ class OrderService {
 
       // Store cancellation details
       if (reason) {
+        console.log('💾 Storing cancellation reason in DB:', { orderId, reason });
         await orderRepository.updateCancellationReason(orderId, reason);
+        console.log('✅ Cancellation reason stored successfully');
+      } else {
+        console.log('⚠️ No cancellation reason provided');
       }
 
       return {
