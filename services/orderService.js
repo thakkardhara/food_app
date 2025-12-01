@@ -9,7 +9,7 @@ class OrderService {
     CONFIRMED: "confirmed",
     PREPARED: "prepared",
     OUT_FOR_DELIVERY: "out_for_delivery",
-    DELIVERED: "delivered",
+    DELIVERED: "delivered", // Used for both delivery and takeaway (collection)
     CANCELLED: "cancelled",
   };
 
@@ -17,9 +17,9 @@ class OrderService {
   VALID_TRANSITIONS = {
     pending: ["confirmed", "cancelled"],
     confirmed: ["prepared", "cancelled"],
-    prepared: ["out_for_delivery", "cancelled"],
+    prepared: ["out_for_delivery", "delivered", "cancelled"], // Can go to delivered for takeaway
     out_for_delivery: ["delivered", "cancelled"],
-    delivered: [],
+    delivered: [], // Terminal status for both delivery and takeaway
     cancelled: [],
   };
 
@@ -273,7 +273,7 @@ class OrderService {
     }
   }
 
-  async cancelOrder(orderId, reason = null) {
+  async cancelOrder(orderId, reason = null, cancelledBy = null) {
     try {
       // Get order
       const order = await orderRepository.findOrderById(orderId);
@@ -297,9 +297,10 @@ class OrderService {
       );
 
       // Add cancellation reason to history
+      const cancelledByText = cancelledBy === 'restaurant' ? 'Restaurant' : 'Customer';
       const historyNote = reason
-        ? `Order cancelled. Reason: ${reason}`
-        : "Order cancelled";
+        ? `Order cancelled by ${cancelledByText}. Reason: ${reason}`
+        : `Order cancelled by ${cancelledByText}`;
       await orderRepository.createOrderHistory(
         orderId,
         this.ORDER_STATUS.CANCELLED,
@@ -307,18 +308,16 @@ class OrderService {
       );
 
       // Store cancellation details
-      if (reason) {
-        console.log('💾 Storing cancellation reason in DB:', { orderId, reason });
-        await orderRepository.updateCancellationReason(orderId, reason);
-        console.log('✅ Cancellation reason stored successfully');
-      } else {
-        console.log('⚠️ No cancellation reason provided');
-      }
+      console.log('💾 Storing cancellation details in DB:', { orderId, reason, cancelledBy });
+      await orderRepository.updateCancellationReason(orderId, reason, cancelledBy);
+      console.log('✅ Cancellation details stored successfully');
 
       return {
         order_id: orderId,
         status: this.ORDER_STATUS.CANCELLED,
         message: "Order cancelled successfully",
+        cancelled_by: cancelledBy,
+        cancellation_reason: reason,
       };
     } catch (error) {
       throw new Error(error.message);
@@ -472,6 +471,111 @@ class OrderService {
           items: JSON.parse(createdOrder.items),
         },
       };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  // Pickup Details Methods
+  async submitPickupDetails(orderId, userId, pickupDetails) {
+    try {
+      // Validate pickup details
+      const errors = this.validatePickupDetails(pickupDetails);
+      if (errors.length > 0) {
+        throw new Error(errors.join(", "));
+      }
+
+      // Get order and verify it belongs to the user
+      const order = await orderRepository.findOrderById(orderId);
+      if (!order) {
+        throw new Error("Order not found");
+      }
+
+      if (order.user_id !== userId) {
+        throw new Error("Unauthorized: This order does not belong to you");
+      }
+
+      // Verify order is takeaway
+      if (order.order_type !== "takeaway") {
+        throw new Error("Pickup details can only be submitted for takeaway orders");
+      }
+
+      // Verify order status is appropriate (confirmed or prepared)
+      const validStatuses = ["confirmed", "prepared"];
+      if (!validStatuses.includes(order.status)) {
+        throw new Error(
+          `Pickup details can only be submitted when order is confirmed or prepared. Current status: ${order.status}`
+        );
+      }
+
+      // Update pickup details
+      await orderRepository.updatePickupDetails(orderId, pickupDetails);
+
+      // Create history entry
+      const historyNote = `Customer submitted pickup details: ${pickupDetails.arrival_mode === "vehicle" ? `Vehicle ${pickupDetails.vehicle_number}` : `On foot - ${pickupDetails.clothing_description}`}`;
+      await orderRepository.createOrderHistory(
+        orderId,
+        order.status,
+        historyNote
+      );
+
+      return {
+        message: "Pickup details submitted successfully",
+        order_id: orderId,
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  validatePickupDetails(pickupDetails) {
+    const errors = [];
+
+    // Validate arrival mode
+    if (!pickupDetails.arrival_mode) {
+      errors.push("Arrival mode is required (vehicle or foot)");
+    } else if (!["vehicle", "foot"].includes(pickupDetails.arrival_mode)) {
+      errors.push("Arrival mode must be either 'vehicle' or 'foot'");
+    }
+
+    // Validate based on arrival mode
+    if (pickupDetails.arrival_mode === "vehicle") {
+      if (!pickupDetails.vehicle_number || pickupDetails.vehicle_number.trim() === "") {
+        errors.push("Vehicle number is required when arriving by vehicle");
+      }
+    } else if (pickupDetails.arrival_mode === "foot") {
+      if (!pickupDetails.clothing_description || pickupDetails.clothing_description.trim() === "") {
+        errors.push("Clothing description is required when arriving on foot");
+      }
+    }
+
+    // Validate parking location (optional but recommended)
+    if (pickupDetails.parking_location && pickupDetails.parking_location.length > 255) {
+      errors.push("Parking location description is too long (max 255 characters)");
+    }
+
+    // Validate coordinates if provided
+    if (pickupDetails.current_latitude !== null && pickupDetails.current_latitude !== undefined) {
+      const lat = parseFloat(pickupDetails.current_latitude);
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        errors.push("Invalid latitude value");
+      }
+    }
+
+    if (pickupDetails.current_longitude !== null && pickupDetails.current_longitude !== undefined) {
+      const lng = parseFloat(pickupDetails.current_longitude);
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        errors.push("Invalid longitude value");
+      }
+    }
+
+    return errors;
+  }
+
+  async getPickupDetails(orderId) {
+    try {
+      const pickupDetails = await orderRepository.getPickupDetails(orderId);
+      return pickupDetails;
     } catch (error) {
       throw new Error(error.message);
     }

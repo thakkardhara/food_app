@@ -184,13 +184,16 @@ class OrderController {
     }
   }
 
-  // 6. Cancel Order (User can cancel their orders without authentication)
+  // 6. Cancel Order (User or Restaurant can cancel orders)
   async cancelOrder(req, res) {
     try {
       const { order_id } = req.params;
       const { reason } = req.body;
 
-      console.log('📝 Cancel Order Request:', { order_id, reason });
+      // Determine who is cancelling: restaurant or user
+      const cancelledBy = req.restaurant ? 'restaurant' : 'user';
+
+      console.log('📝 Cancel Order Request:', { order_id, reason, cancelledBy });
 
       // Get order
       const order = await orderService.getOrderById(order_id);
@@ -206,8 +209,8 @@ class OrderController {
         });
       }
 
-      // Cancel the order with reason
-      const result = await orderService.cancelOrder(order_id, reason);
+      // Cancel the order with reason and who cancelled it
+      const result = await orderService.cancelOrder(order_id, reason, cancelledBy);
       
       console.log('✅ Order cancelled successfully:', result);
       
@@ -265,6 +268,70 @@ class OrderController {
       res.status(200).json(activeOrders);
     } catch (error) {
       console.error("Get active orders error:", error.message);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  // 9. Submit Pickup Details (Customer submits when ready for collection)
+  async submitPickupDetails(req, res) {
+    try {
+      const { order_id } = req.params;
+      const { user_id } = req.body; // Should come from authenticated user in production
+      const pickupDetails = {
+        arrival_mode: req.body.arrival_mode,
+        vehicle_number: req.body.vehicle_number,
+        clothing_description: req.body.clothing_description,
+        parking_location: req.body.parking_location,
+        current_latitude: req.body.current_latitude,
+        current_longitude: req.body.current_longitude,
+        additional_notes: req.body.additional_notes,
+      };
+
+      if (!user_id) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+
+      const result = await orderService.submitPickupDetails(
+        order_id,
+        user_id,
+        pickupDetails
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Submit pickup details error:", error.message);
+
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (
+        error.message.includes("Unauthorized") ||
+        error.message.includes("required") ||
+        error.message.includes("must be") ||
+        error.message.includes("can only be")
+      ) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  // 10. Get Pickup Details (For restaurant to view customer pickup info)
+  async getPickupDetails(req, res) {
+    try {
+      const { order_id } = req.params;
+
+      const pickupDetails = await orderService.getPickupDetails(order_id);
+
+      if (!pickupDetails) {
+        return res.status(404).json({ error: "Pickup details not found" });
+      }
+
+      res.status(200).json(pickupDetails);
+    } catch (error) {
+      console.error("Get pickup details error:", error.message);
       res.status(500).json({ error: "Internal server error" });
     }
   }

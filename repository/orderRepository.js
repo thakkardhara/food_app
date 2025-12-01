@@ -63,6 +63,7 @@ class OrderRepository {
   async findOrderById(orderId) {
     // Select order and some restaurant fields (LEFT JOIN so we still return the order
     // even if the restaurant row is missing)
+    // Now includes pickup details columns
     const query = `
       SELECT
         o.*, 
@@ -235,16 +236,16 @@ class OrderRepository {
     }
   }
 
-  async updateCancellationReason(orderId, reason) {
+  async updateCancellationReason(orderId, reason, cancelledBy = null) {
     const query = `
       UPDATE orders 
-      SET cancellation_reason = ? 
+      SET cancellation_reason = ?, cancelled_by = ? 
       WHERE order_id = ?
     `;
 
     try {
-      console.log('🗄️ Executing DB query:', { orderId, reason });
-      const [result] = await pool.execute(query, [reason, orderId]);
+      console.log('🗄️ Executing DB query:', { orderId, reason, cancelledBy });
+      const [result] = await pool.execute(query, [reason, cancelledBy, orderId]);
       console.log('✅ DB Update Result:', { affectedRows: result.affectedRows });
       return result;
     } catch (error) {
@@ -604,6 +605,80 @@ class OrderRepository {
       }));
     } catch (error) {
       console.error("Error searching orders:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  // Pickup Details Methods
+  async updatePickupDetails(orderId, pickupDetails) {
+    const {
+      arrival_mode,
+      vehicle_number,
+      clothing_description,
+      parking_location,
+      current_latitude,
+      current_longitude,
+      additional_notes,
+    } = pickupDetails;
+
+    const query = `
+      UPDATE orders 
+      SET 
+        pickup_arrival_mode = ?,
+        pickup_vehicle_number = ?,
+        pickup_clothing_description = ?,
+        pickup_parking_location = ?,
+        pickup_current_latitude = ?,
+        pickup_current_longitude = ?,
+        pickup_additional_notes = ?,
+        pickup_details_submitted_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [
+        arrival_mode,
+        vehicle_number || null,
+        clothing_description || null,
+        parking_location || null,
+        current_latitude || null,
+        current_longitude || null,
+        additional_notes || null,
+        orderId,
+      ]);
+
+      if (result.affectedRows === 0) {
+        throw new Error("Order not found");
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error updating pickup details:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  async getPickupDetails(orderId) {
+    const query = `
+      SELECT 
+        pickup_arrival_mode,
+        pickup_vehicle_number,
+        pickup_clothing_description,
+        pickup_parking_location,
+        pickup_current_latitude,
+        pickup_current_longitude,
+        pickup_additional_notes,
+        pickup_details_submitted_at
+      FROM orders 
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [rows] = await pool.execute(query, [orderId]);
+      return rows[0] || null;
+    } catch (error) {
+      console.error("Error getting pickup details:", error);
       throw new Error(`Database error: ${error.message}`);
     }
   }

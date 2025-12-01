@@ -19,6 +19,9 @@ router.get('/user/:user_id', orderController.getOrdersByUser);
 // 4. Cancel Order (user can cancel their own orders)
 router.post('/:order_id/cancel', orderController.cancelOrder);
 
+// 5. Submit Pickup Details (user submits when ready for collection)
+router.post('/:order_id/pickup-details', orderController.submitPickupDetails);
+
 
 /* ===============================
    RESTAURANT ENDPOINTS (Restricted)
@@ -38,6 +41,9 @@ router.get('/restaurant/:restaurant_id/stats', activeRestaurantOnly, orderContro
 
 // 8. Get Active Orders (real-time tracking for restaurant)
 router.get('/restaurant/:restaurant_id/active', activeRestaurantOnly, orderController.getActiveOrders);
+
+// 9. Get Pickup Details (restaurant views customer pickup info)
+router.get('/:order_id/pickup-details', orderController.getPickupDetails);
 
 
 /* ===============================

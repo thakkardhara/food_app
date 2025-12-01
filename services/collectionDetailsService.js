@@ -25,9 +25,13 @@ class CollectionDetailsService {
       throw new Error("Order not found");
     }
 
-    if (order.order_type !== "collection") {
+    console.log(`[Collection Details] Order ${order_id} has order_type: '${order.order_type}'`);
+    
+    // Accept both 'collection' and 'takeaway' (they mean the same thing)
+    // Using AND (&&) because we want to reject if it's NEITHER collection NOR takeaway
+    if (order.order_type !== "collection" && order.order_type !== "takeaway") {
       throw new Error(
-        "Collection details can only be added for orders with order_type 'collection'"
+        `Collection details can only be added for collection/takeaway orders. Current order_type: '${order.order_type}'`
       );
     }
 
@@ -65,9 +69,13 @@ class CollectionDetailsService {
       throw new Error("Order not found");
     }
 
-    if (order.order_type !== "collection") {
+    console.log(`[Collection Details GET] Order ${orderId} has order_type: '${order.order_type}'`);
+    
+    // Accept both 'collection' and 'takeaway' (they mean the same thing)
+    // Using AND (&&) because we want to reject if it's NEITHER collection NOR takeaway
+    if (order.order_type !== "collection" && order.order_type !== "takeaway") {
       throw new Error(
-        "This order is not a collection type order"
+        `This order is not a collection/takeaway type order. Current order_type: '${order.order_type}'`
       );
     }
 
@@ -92,9 +100,13 @@ class CollectionDetailsService {
       throw new Error("Order not found");
     }
 
-    if (order.order_type !== "collection") {
+    console.log(`[Collection Details UPDATE] Order ${orderId} has order_type: '${order.order_type}'`);
+    
+    // Accept both 'collection' and 'takeaway' (they mean the same thing)
+    // Using AND (&&) because we want to reject if it's NEITHER collection NOR takeaway
+    if (order.order_type !== "collection" && order.order_type !== "takeaway") {
       throw new Error(
-        "Collection details can only be updated for orders with order_type 'collection'"
+        `Collection details can only be updated for collection/takeaway orders. Current order_type: '${order.order_type}'`
       );
     }
 
@@ -141,9 +153,13 @@ class CollectionDetailsService {
       throw new Error("Order not found");
     }
 
-    if (order.order_type !== "collection") {
+    console.log(`[Collection Details DELETE] Order ${orderId} has order_type: '${order.order_type}'`);
+    
+    // Accept both 'collection' and 'takeaway' (they mean the same thing)
+    // Using AND (&&) because we want to reject if it's NEITHER collection NOR takeaway
+    if (order.order_type !== "collection" && order.order_type !== "takeaway") {
       throw new Error(
-        "Collection details can only be deleted for orders with order_type 'collection'"
+        `Collection details can only be deleted for collection/takeaway orders. Current order_type: '${order.order_type}'`
       );
     }
 
