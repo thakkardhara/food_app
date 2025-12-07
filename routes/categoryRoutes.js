@@ -64,6 +64,12 @@ router.put(
   categoryController.updateItem
 );
 
+// Update Item Availability (PATCH - only availability)
+router.patch(
+  "/:restaurant_id/category/:category_id/item/:item_id/availability",
+  categoryController.updateItemAvailability
+);
+
 // Delete Item
 router.delete(
   "/:restaurant_id/category/:category_id/item/:item_id",

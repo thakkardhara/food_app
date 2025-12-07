@@ -257,6 +257,132 @@ class AdminController {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
+
+  // Get All Orders
+  async getAllOrders(req, res) {
+    try {
+      const { status, restaurant_id, page = 1, limit = 50 } = req.query;
+      
+      const result = await adminService.getAllOrders({
+        status,
+        restaurant_id,
+        page: parseInt(page),
+        limit: parseInt(limit)
+      });
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get all orders error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get Orders Grouped by Restaurant
+  async getOrdersByRestaurant(req, res) {
+    try {
+      const result = await adminService.getOrdersGroupedByRestaurant();
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get orders by restaurant error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get All Users
+  async getAllUsers(req, res) {
+    try {
+      const { page = 1, limit = 50, search } = req.query;
+      
+      const result = await adminService.getAllUsers({
+        page: parseInt(page),
+        limit: parseInt(limit),
+        search
+      });
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get all users error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get User Details with Orders
+  async getUserDetails(req, res) {
+    try {
+      const { user_id } = req.params;
+      
+      const result = await adminService.getUserDetails(user_id);
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get user details error:', error.message);
+      
+      if (error.message === 'User not found') {
+        return res.status(404).json({ error: error.message });
+      }
+      
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get Analytics Data
+  async getAnalytics(req, res) {
+    try {
+      const { restaurant_id, year } = req.query;
+      
+      const result = await adminService.getAnalytics({
+        restaurant_id,
+        year: year ? parseInt(year) : new Date().getFullYear()
+      });
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get analytics error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get Revenue Analytics
+  async getRevenueAnalytics(req, res) {
+    try {
+      const { restaurant_id, year } = req.query;
+      
+      if (!restaurant_id) {
+        return res.status(400).json({ error: 'Restaurant ID is required' });
+      }
+      
+      const result = await adminService.getRevenueAnalytics(
+        restaurant_id,
+        year ? parseInt(year) : new Date().getFullYear()
+      );
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get revenue analytics error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get Menu Item Sales Analytics
+  async getMenuItemSales(req, res) {
+    try {
+      const { restaurant_id, year } = req.query;
+      
+      if (!restaurant_id) {
+        return res.status(400).json({ error: 'Restaurant ID is required' });
+      }
+      
+      const result = await adminService.getMenuItemSales(
+        restaurant_id,
+        year ? parseInt(year) : new Date().getFullYear()
+      );
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get menu item sales error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
 }
 
 module.exports = new AdminController();

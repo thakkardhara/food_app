@@ -174,7 +174,7 @@ class CategoryService {
         throw new Error("Category not found");
       }
 
-      // Check if category has items
+      // Check if category has items and delete their images
       const items = category.items || [];
 
       // Delete all item images before deleting category
@@ -184,12 +184,7 @@ class CategoryService {
         }
       }
 
-      if (items.length > 0) {
-        throw new Error(
-          "Cannot delete category with items. Please delete all items first"
-        );
-      }
-
+      // Delete category (items will be deleted with it since they're stored in the same row)
       await categoryRepository.deleteCategory(restaurantId, categoryId);
 
       return {
@@ -387,6 +382,58 @@ class CategoryService {
     }
   }
 
+  async updateItemAvailability(restaurantId, categoryId, itemId, availability) {
+    try {
+      // Check if category exists
+      const category = await categoryRepository.findCategoryById(
+        restaurantId,
+        categoryId
+      );
+      if (!category) {
+        throw new Error("Category not found");
+      }
+
+      // Check if item exists
+      const items = category.items || [];
+      const itemIndex = items.findIndex((item) => item.item_id === itemId);
+
+      if (itemIndex === -1) {
+        throw new Error("Item not found");
+      }
+
+      const existingItem = items[itemIndex];
+
+      // Normalize availability value
+      const normalizedAvailability =
+        availability === true ||
+        availability === "true" ||
+        availability === "1" ||
+        availability === 1;
+
+      const allowedUpdates = {
+        availability: normalizedAvailability,
+        updated_at: new Date().toISOString(),
+      };
+
+      await categoryRepository.updateItem(
+        restaurantId,
+        categoryId,
+        itemId,
+        allowedUpdates
+      );
+
+      return {
+        item_id: itemId,
+        category_id: categoryId,
+        name: existingItem.name,
+        availability: normalizedAvailability,
+        message: "Item availability updated successfully",
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
   async deleteItem(restaurantId, categoryId, itemId) {
     try {
       // Check if category exists
@@ -446,6 +493,7 @@ class CategoryService {
           is_active: cat.is_active,
           items: (cat.items || []).map((item) => ({
             ...item,
+            category_id: cat.category_id, // Add category_id to each item
             // Format photo URL for frontend
             photo: item.photo ? `/${item.photo}` : null,
           })),
@@ -522,6 +570,7 @@ class CategoryService {
         is_active: category.is_active,
         items: (category.items || []).map((item) => ({
           ...item,
+          category_id: category.category_id, // Add category_id to each item
           // Format photo URL for frontend
           photo: item.photo ? `/${item.photo}` : null,
         })),

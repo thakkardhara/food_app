@@ -19,13 +19,25 @@ router.get('/restaurants/:restaurant_id', adminController.getRestaurantById);
 router.patch('/restaurants/:restaurant_id/status', adminController.updateRestaurantStatus);
 router.delete('/restaurants/:restaurant_id', adminController.deleteRestaurant);
 
-
 // NEW: Restaurant settings management by admin
 router.patch('/restaurants/:restaurant_id/settings', adminController.updateRestaurantSettings);
 router.patch('/restaurants/:restaurant_id/force-offline', adminController.forceRestaurantOffline);
 
 // Dashboard
 router.get('/dashboard/stats', adminController.getDashboardStats);
+
+// Orders management
+router.get('/orders', adminController.getAllOrders);
+router.get('/orders/by-restaurant', adminController.getOrdersByRestaurant);
+
+// Users management
+router.get('/users', adminController.getAllUsers);
+router.get('/users/:user_id', adminController.getUserDetails);
+
+// Analytics
+router.get('/analytics', adminController.getAnalytics);
+router.get('/analytics/revenue', adminController.getRevenueAnalytics);
+router.get('/analytics/menu-sales', adminController.getMenuItemSales);
 
 // Error handling middleware
 router.use((error, req, res, next) => {

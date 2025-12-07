@@ -130,13 +130,30 @@ class CategoryController {
   // Update Item (WITH IMAGE UPLOAD)
   async updateItem(req, res) {
     try {
+      console.log('📝 Update Item Request:', {
+        restaurant_id: req.params.restaurant_id,
+        category_id: req.params.category_id,
+        item_id: req.params.item_id,
+        body: req.body,
+        hasFile: !!req.file,
+        file: req.file ? { filename: req.file.filename, path: req.file.path } : null
+      });
+
       const { restaurant_id, category_id, item_id } = req.params;
       const updateData = { ...req.body };
 
-      // Handle image if uploaded
+      // Handle image if uploaded - ONLY add photo to updateData if a new file is uploaded
       if (req.file) {
         updateData.photo = req.file.path.replace(/\\/g, "/");
+        console.log('📷 New photo uploaded:', updateData.photo);
+      } else {
+        // Remove photo field from updateData if no new file uploaded
+        // This ensures backend keeps existing photo
+        delete updateData.photo;
+        console.log('📷 No new photo uploaded, keeping existing photo (photo field removed from updateData)');
       }
+
+      console.log('📦 Final updateData:', updateData);
 
       const result = await categoryService.updateItem(
         restaurant_id,
@@ -145,9 +162,11 @@ class CategoryController {
         updateData
       );
       
+      console.log('✅ Item updated successfully:', result);
       res.status(200).json(result);
     } catch (error) {
-      console.error("Update item error:", error.message);
+      console.error("❌ Update item error:", error.message);
+      console.error("Error stack:", error.stack);
 
       // Clean up uploaded file on error
       if (req.file) {
@@ -162,7 +181,44 @@ class CategoryController {
         return res.status(400).json({ error: error.message });
       }
 
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json({ error: "Internal server error", details: error.message });
+    }
+  }
+
+  // Update Item Availability (PATCH - only availability)
+  async updateItemAvailability(req, res) {
+    try {
+      console.log('🔄 Update Item Availability Request:', {
+        restaurant_id: req.params.restaurant_id,
+        category_id: req.params.category_id,
+        item_id: req.params.item_id,
+        body: req.body
+      });
+
+      const { restaurant_id, category_id, item_id } = req.params;
+      const { availability } = req.body;
+
+      if (availability === undefined) {
+        return res.status(400).json({ error: "Availability field is required" });
+      }
+
+      const result = await categoryService.updateItemAvailability(
+        restaurant_id,
+        category_id,
+        item_id,
+        availability
+      );
+      
+      console.log('✅ Item availability updated successfully:', result);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("❌ Update item availability error:", error.message);
+
+      if (error.message.includes("not found")) {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error", details: error.message });
     }
   }
 
