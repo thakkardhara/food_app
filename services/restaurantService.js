@@ -545,13 +545,14 @@ class RestaurantService {
 
       await restaurantRepository.setOtpByEmail(email, otp, expiry);
 
-      // Send email
+      // Send email with professional template
       const sendMail = require("../utils/sendMail");
+      const { getPasswordResetOTPEmail } = require("../utils/emailTemplates");
       await sendMail({
         to: email,
-        subject: "Your OTP for Restaurant Password Reset",
+        subject: "92 Eats Restaurant - Password Reset Request",
         text: `Your OTP is ${otp}. It expires in 15 minutes.`,
-        html: `<p>Your OTP for password reset is: <b>${otp}</b><br/>It is valid for 15 minutes.</p>`,
+        html: getPasswordResetOTPEmail(otp),
       });
 
       return { message: "OTP sent successfully" };

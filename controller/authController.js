@@ -2,8 +2,9 @@ const db = require('../db/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const TABLES = require('../utils/tables');
-const { isValidGmail, isValidPhone, isValidPassword, generateOTP } = require('../utils/validation');
+const { isValidEmail, isValidPhone, isValidPassword, generateOTP } = require('../utils/validation');
 const sendMail = require('../utils/sendMail');
+const { getRegistrationOTPEmail, getPasswordResetOTPEmail, getPasswordChangedEmail } = require('../utils/emailTemplates');
 
 const JWT_SECRET = process.env.JWT_SECRET_KEY;
 
@@ -22,8 +23,8 @@ const register = async (req, res) => {
         if (!username || !email || !password || !phone) {
             return res.status(400).json({ msg: 'Missing required fields' });
         }
-        if (!isValidGmail(email)) {
-            return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ msg: 'Invalid email format' });
         }
         if (!isValidPhone(phone)) {
             return res.status(400).json({ msg: 'Phone number must be exactly 10 digits' });
@@ -58,12 +59,12 @@ const register = async (req, res) => {
             otpExpiry
         ]);
 
-        // Send OTP email
+        // Send OTP email with professional template
         await sendMail({
             to: email,
-            subject: "Your OTP Code",
-            text: `Your OTP is: ${otp}`,
-            html: `<p>Hello <b>${username}</b>,</p><p>Your OTP is: <b>${otp}</b></p>`
+            subject: "Welcome to 92 Eats - Verify Your Email",
+            text: `Hello ${username}, Your OTP is: ${otp}. This code is valid for 10 minutes.`,
+            html: getRegistrationOTPEmail(username, otp)
         });
 
         res.status(201).json({
@@ -192,8 +193,8 @@ const forgotPassword = async (req, res) => {
         if (!email) {
             return res.status(400).json({ error: 'Email is required', status: false });
         }
-        if (!isValidGmail(email)) {
-            return res.status(400).json({ error: 'Only @gmail.com emails are allowed', status: false });
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ error: 'Invalid email format', status: false });
         }
         const [users] = await db.query(`SELECT * FROM ${TABLES.USER_TABLE} WHERE email = ?`, [email]);
         if (users.length === 0) {
@@ -204,16 +205,16 @@ const forgotPassword = async (req, res) => {
         const expiry = new Date(Date.now() + 15 * 60 * 1000);
         await db.query(`UPDATE ${TABLES.USER_TABLE} SET otp = ?, otp_expiry = ? WHERE id = ?`, [otp, expiry, user.id]);
 
-        // Send OTP email
-       
+        // Send OTP email with professional template
         try {
             await sendMail({
                 to: email,
-                subject: 'Your OTP for Password Reset',
+                subject: '92 Eats - Password Reset Request',
                 text: `Your OTP for password reset is: ${otp}. It is valid for 15 minutes.`,
-                html: `<p>Your OTP for password reset is: <b>${otp}</b>. It is valid for 15 minutes.</p>`
+                html: getPasswordResetOTPEmail(otp)
             });
         } catch (mailErr) {
+            console.error('Email sending error:', mailErr);
             return res.status(500).json({ error: 'Failed to send OTP email', status: false });
         }
 
@@ -230,8 +231,8 @@ const changePassword = async (req, res) => {
         if (!email || !otp || !newPassword) {
             return res.status(400).json({ msg: 'Email, OTP, and new password are required' });
         }
-        if (!isValidGmail(email)) {
-            return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ msg: 'Invalid email format' });
         }
         if (!isValidPassword(newPassword)) {
             return res.status(400).json({ msg: 'Password must be at least 6 characters and include a letter, a number, and a special character' });
@@ -247,7 +248,20 @@ const changePassword = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
  
-    await db.query(`UPDATE ${TABLES.USER_TABLE} SET password = ?, otp = NULL, otp_expiry = NULL WHERE id = ?`, [hashedPassword, user.id]);
+        await db.query(`UPDATE ${TABLES.USER_TABLE} SET password = ?, otp = NULL, otp_expiry = NULL WHERE id = ?`, [hashedPassword, user.id]);
+        
+        // Send password change confirmation email
+        try {
+            await sendMail({
+                to: email,
+                subject: '92 Eats - Password Changed Successfully',
+                text: `Your password has been successfully changed. If you didn't make this change, please contact support immediately.`,
+                html: getPasswordChangedEmail(user.username)
+            });
+        } catch (mailErr) {
+            console.error('Confirmation email error:', mailErr);
+            // Don't fail the request if confirmation email fails
+        }
             
         res.status(200).json({ msg: 'Password changed successfully' });
 
@@ -345,8 +359,8 @@ const updateUser = async (req, res) => {
         }
 
         // Validations
-        if (email && !isValidGmail(email)) {
-            return res.status(400).json({ msg: 'Only @gmail.com emails are allowed' });
+        if (email && !isValidEmail(email)) {
+            return res.status(400).json({ msg: 'Invalid email format' });
         }
 
         if (phone && !isValidPhone(phone)) {

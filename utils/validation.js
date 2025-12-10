@@ -4,10 +4,16 @@ const fs = require('fs');
 
 
 
-// Email validation: only allow @gmail.com
-function isValidGmail(email) {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+
+// Email validation: accept all valid email formats
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+}
+
+// Backward compatibility alias (deprecated)
+function isValidGmail(email) {
+    return isValidEmail(email);
 }
 
 // Phone validation: only 10 digits, no chars allowed
@@ -33,7 +39,8 @@ function generateOTP(length = 6) {
 
 
 module.exports = {
-    isValidGmail,
+    isValidEmail,
+    isValidGmail, // deprecated, use isValidEmail
     isValidPhone,
     isValidPassword,
     generateOTP
