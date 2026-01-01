@@ -139,12 +139,12 @@ class OrderRepository {
         profile_image: row.restaurant_profile_image || null,
         latitude:
           row.restaurant_latitude !== null &&
-          row.restaurant_latitude !== undefined
+            row.restaurant_latitude !== undefined
             ? parseFloat(row.restaurant_latitude)
             : null,
         longitude:
           row.restaurant_longitude !== null &&
-          row.restaurant_longitude !== undefined
+            row.restaurant_longitude !== undefined
             ? parseFloat(row.restaurant_longitude)
             : null,
         cuisine,
@@ -154,24 +154,24 @@ class OrderRepository {
       // build user_location if available
       const user_location = row.user_address_id
         ? {
-            id: row.user_address_id,
-            addressline1: row.user_addressline1 || null,
-            addressline2: row.user_addressline2 || null,
-            pincode: row.user_pincode || null,
-            city: row.user_city || null,
-            state: row.user_state || null,
-            country: row.user_country || null,
-            area: row.user_area || null,
-            delivery_instructions: row.user_delivery_instructions || null,
-            latitude:
-              row.user_latitude !== null && row.user_latitude !== undefined
-                ? parseFloat(row.user_latitude)
-                : null,
-            longitude:
-              row.user_longitude !== null && row.user_longitude !== undefined
-                ? parseFloat(row.user_longitude)
-                : null,
-          }
+          id: row.user_address_id,
+          addressline1: row.user_addressline1 || null,
+          addressline2: row.user_addressline2 || null,
+          pincode: row.user_pincode || null,
+          city: row.user_city || null,
+          state: row.user_state || null,
+          country: row.user_country || null,
+          area: row.user_area || null,
+          delivery_instructions: row.user_delivery_instructions || null,
+          latitude:
+            row.user_latitude !== null && row.user_latitude !== undefined
+              ? parseFloat(row.user_latitude)
+              : null,
+          longitude:
+            row.user_longitude !== null && row.user_longitude !== undefined
+              ? parseFloat(row.user_longitude)
+              : null,
+        }
         : null;
 
       // remove the raw joined fields from the result to avoid duplication
@@ -320,18 +320,18 @@ class OrderRepository {
 
         const user_location = row.user_address_id
           ? {
-              id: row.user_address_id,
-              addressline1: row.user_addressline1 || null,
-              addressline2: row.user_addressline2 || null,
-              pincode: row.user_pincode || null,
-              city: row.user_city || null,
-              state: row.user_state || null,
-              country: row.user_country || null,
-              area: row.user_area || null,
-              delivery_instructions: row.user_delivery_instructions || null,
-              latitude: row.user_latitude || null,
-              longitude: row.user_longitude || null,
-            }
+            id: row.user_address_id,
+            addressline1: row.user_addressline1 || null,
+            addressline2: row.user_addressline2 || null,
+            pincode: row.user_pincode || null,
+            city: row.user_city || null,
+            state: row.user_state || null,
+            country: row.user_country || null,
+            area: row.user_area || null,
+            delivery_instructions: row.user_delivery_instructions || null,
+            latitude: row.user_latitude || null,
+            longitude: row.user_longitude || null,
+          }
           : null;
 
         // Remove the joined address/restaurant raw fields to avoid duplication
@@ -682,6 +682,140 @@ class OrderRepository {
       throw new Error(`Database error: ${error.message}`);
     }
   }
+
+  // Timer-related methods
+
+  /**
+   * Update timer fields when order is confirmed
+   */
+  async updateTimerData(orderId, timerData) {
+    const {
+      timer_started_at,
+      timer_preparation_minutes,
+      timer_delivery_minutes,
+      timer_phase,
+      timer_stuck_at_minutes,
+      delivery_distance_km
+    } = timerData;
+
+    const query = `
+      UPDATE orders 
+      SET 
+        timer_started_at = COALESCE(?, timer_started_at),
+        timer_preparation_minutes = COALESCE(?, timer_preparation_minutes),
+        timer_delivery_minutes = COALESCE(?, timer_delivery_minutes),
+        timer_phase = COALESCE(?, timer_phase),
+        timer_stuck_at_minutes = ?,
+        delivery_distance_km = COALESCE(?, delivery_distance_km),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [
+        timer_started_at || null,
+        timer_preparation_minutes !== undefined ? timer_preparation_minutes : null,
+        timer_delivery_minutes !== undefined ? timer_delivery_minutes : null,
+        timer_phase || null,
+        timer_stuck_at_minutes !== undefined ? timer_stuck_at_minutes : null,
+        delivery_distance_km !== undefined ? delivery_distance_km : null,
+        orderId
+      ]);
+
+      if (result.affectedRows === 0) {
+        throw new Error("Order not found");
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Error updating timer data:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update timer phase when order status changes
+   */
+  async updateTimerPhase(orderId, phase) {
+    const query = `
+      UPDATE orders 
+      SET timer_phase = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [phase, orderId]);
+      return result;
+    } catch (error) {
+      console.error("Error updating timer phase:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Store delivery distance and calculated delivery time
+   */
+  async updateDeliveryDistanceData(orderId, distanceKm, deliveryTimeMinutes) {
+    const query = `
+      UPDATE orders 
+      SET 
+        delivery_distance_km = ?,
+        timer_delivery_minutes = ?,
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [
+        distanceKm,
+        deliveryTimeMinutes,
+        orderId
+      ]);
+      return result;
+    } catch (error) {
+      console.error("Error updating delivery distance data:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update confirmed_at timestamp when order is confirmed
+   */
+  async updateConfirmedAt(orderId, timestamp = new Date()) {
+    const query = `
+      UPDATE orders 
+      SET confirmed_at = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [timestamp, orderId]);
+      return result;
+    } catch (error) {
+      console.error("Error updating confirmed_at:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update out_for_delivery_at timestamp when order is out for delivery
+   */
+  async updateOutForDeliveryAt(orderId, timestamp = new Date()) {
+    const query = `
+      UPDATE orders 
+      SET out_for_delivery_at = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE order_id = ?
+    `;
+
+    try {
+      const [result] = await pool.execute(query, [timestamp, orderId]);
+      return result;
+    } catch (error) {
+      console.error("Error updating out_for_delivery_at:", error);
+      throw new Error(`Database error: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new OrderRepository();
+

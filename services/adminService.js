@@ -84,27 +84,27 @@ class AdminService {
   }
 
 
-  
-  
+
+
   // Update Restaurant Status
   async updateRestaurantStatus(restaurantId, status, adminId) {
     try {
       if (!status) {
         throw new Error('Status is required');
       }
-      
+
       const validStatuses = ['active', 'inactive', 'pending', 'disabled'];
       if (!validStatuses.includes(status)) {
         throw new Error('Invalid status. Must be: active, inactive, pending, or disabled');
       }
-      
+
       const restaurant = await restaurantRepository.findByRestaurantId(restaurantId);
       if (!restaurant) {
         throw new Error('Restaurant not found');
       }
-      
+
       await adminRepository.updateRestaurantStatus(restaurantId, status);
-      
+
       return {
         message: 'Restaurant status updated successfully',
         restaurant_id: restaurantId,
@@ -114,8 +114,8 @@ class AdminService {
       throw new Error(error.message);
     }
   }
-  
-async getAllRestaurants(options = {}) {
+
+  async getAllRestaurants(options = {}) {
     try {
       const {
         status,
@@ -209,14 +209,14 @@ async getAllRestaurants(options = {}) {
 
       return {
         ...restaurantData,
-        cuisine: typeof restaurantData.cuisine === 'string' 
-          ? JSON.parse(restaurantData.cuisine) 
+        cuisine: typeof restaurantData.cuisine === 'string'
+          ? JSON.parse(restaurantData.cuisine)
           : restaurantData.cuisine,
-        menu: typeof restaurantData.menu === 'string' 
-          ? JSON.parse(restaurantData.menu) 
+        menu: typeof restaurantData.menu === 'string'
+          ? JSON.parse(restaurantData.menu)
           : restaurantData.menu,
-        profile_image: restaurantData.profile_image 
-          ? `/${restaurantData.profile_image}` 
+        profile_image: restaurantData.profile_image
+          ? `/${restaurantData.profile_image}`
           : '/uploads/defaults/restaurant-default.png'
       };
     } catch (error) {
@@ -234,7 +234,7 @@ async getAllRestaurants(options = {}) {
 
       // Validate boolean values
       const validSettings = {};
-      
+
       if (settings.card_payment_enabled !== undefined) {
         if (typeof settings.card_payment_enabled !== 'boolean') {
           throw new Error('card_payment_enabled must be a boolean');
@@ -321,7 +321,7 @@ async getAllRestaurants(options = {}) {
     }
   }
 
- 
+
   // Change Admin Password
   async changePassword(email, oldPassword, newPassword) {
     try {
@@ -377,11 +377,11 @@ async getAllRestaurants(options = {}) {
 
 
 
-   // Get Dashboard Statistics
-async getDashboardStats() {
+  // Get Dashboard Statistics
+  async getDashboardStats() {
     try {
       const pool = require('../db/db');
-      
+
       // Get restaurant stats by status and online status
       const [restaurantStats] = await pool.execute(`
         SELECT 
@@ -465,65 +465,136 @@ async getDashboardStats() {
     }
   }
 
+  // Get Top Restaurants by Revenue
+  async getTopRestaurantsByRevenue(limit = 3) {
+    try {
+      const pool = require('../db/db');
+
+      // Ensure limit is a valid integer for safe interpolation
+      const safeLimit = parseInt(limit, 10) || 3;
+
+      const query = `
+        SELECT 
+          r.restaurant_id,
+          r.name,
+          r.email,
+          r.phone,
+          r.profile_image,
+          r.latitude,
+          r.longitude,
+          r.cuisine,
+          r.status,
+          r.is_online,
+          r.delivery_enabled,
+          r.takeaway_enabled,
+          r.card_payment_enabled,
+          r.cash_payment_enabled,
+          COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.total_price ELSE 0 END), 0) as total_revenue,
+          COUNT(CASE WHEN o.status = 'delivered' THEN 1 END) as total_orders,
+          COALESCE((SELECT COUNT(*) FROM categories c WHERE c.restaurant_id = r.restaurant_id), 0) as categories_count,
+          COALESCE((SELECT SUM(JSON_LENGTH(c.items)) FROM categories c WHERE c.restaurant_id = r.restaurant_id), 0) as menu_items_count
+        FROM restaurants r
+        LEFT JOIN orders o ON r.restaurant_id = o.restaurant_id
+        WHERE r.status = 'active'
+        GROUP BY r.restaurant_id
+        ORDER BY total_revenue DESC
+        LIMIT ${safeLimit}
+      `;
+
+      const [restaurants] = await pool.execute(query);
+
+      // Parse cuisine JSON and format profile image
+      const formattedRestaurants = restaurants.map(r => {
+        let cuisineParsed = [];
+        try {
+          cuisineParsed = typeof r.cuisine === 'string' ? JSON.parse(r.cuisine) : (r.cuisine || []);
+        } catch {
+          cuisineParsed = [];
+        }
+
+        return {
+          ...r,
+          cuisine: cuisineParsed,
+          profile_image: r.profile_image ? `/${r.profile_image}` : '/uploads/defaults/restaurant-default.png',
+          // Add categories array with menu_items_count for frontend compatibility
+          categories: [],
+          menu_items_count: parseInt(r.menu_items_count) || 0,
+          categories_count: parseInt(r.categories_count) || 0
+        };
+      });
+
+      return {
+        restaurants: formattedRestaurants,
+        total: formattedRestaurants.length
+      };
+
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
   // Get All Orders
   async getAllOrders(options = {}) {
     try {
       const { status, restaurant_id, page = 1, limit = 50 } = options;
-      const offset = (page - 1) * limit;
+
+      // Ensure limit and offset are valid integers for safe interpolation
+      const safeLimit = parseInt(limit, 10) || 50;
+      const safePage = parseInt(page, 10) || 1;
+      const safeOffset = (safePage - 1) * safeLimit;
+
       const pool = require('../db/db');
-      
+
       let query = `
         SELECT 
           o.*,
           r.name as restaurant_name,
-          u.name as user_name,
           u.email as user_email,
           u.phone as user_phone
         FROM orders o
         LEFT JOIN restaurants r ON o.restaurant_id = r.restaurant_id
-        LEFT JOIN users u ON o.user_id = u.user_id
+        LEFT JOIN users u ON o.user_id = u.id
         WHERE 1=1
       `;
       const params = [];
-      
+
       if (status) {
         query += ' AND o.status = ?';
         params.push(status);
       }
-      
+
       if (restaurant_id) {
         query += ' AND o.restaurant_id = ?';
         params.push(restaurant_id);
       }
-      
-      query += ' ORDER BY o.created_at DESC LIMIT ? OFFSET ?';
-      params.push(limit, offset);
-      
+
+      query += ` ORDER BY o.created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+
       const [orders] = await pool.execute(query, params);
-      
+
       // Get total count
       let countQuery = 'SELECT COUNT(*) as total FROM orders o WHERE 1=1';
       const countParams = [];
-      
+
       if (status) {
         countQuery += ' AND o.status = ?';
         countParams.push(status);
       }
-      
+
       if (restaurant_id) {
         countQuery += ' AND o.restaurant_id = ?';
         countParams.push(restaurant_id);
       }
-      
+
       const [countResult] = await pool.execute(countQuery, countParams);
       const total = countResult[0].total;
-      
+
       // Parse items JSON
       const parsedOrders = orders.map(order => ({
         ...order,
         items: typeof order.items === 'string' ? JSON.parse(order.items) : order.items
       }));
-      
+
       return {
         orders: parsedOrders,
         pagination: {
@@ -542,7 +613,7 @@ async getDashboardStats() {
   async getOrdersGroupedByRestaurant() {
     try {
       const pool = require('../db/db');
-      
+
       const query = `
         SELECT 
           r.restaurant_id,
@@ -557,9 +628,9 @@ async getDashboardStats() {
         HAVING total_orders > 0
         ORDER BY total_orders DESC
       `;
-      
+
       const [results] = await pool.execute(query);
-      
+
       // Get cancelled by information for each restaurant
       const restaurantsWithDetails = await Promise.all(
         results.map(async (restaurant) => {
@@ -569,14 +640,14 @@ async getDashboardStats() {
             WHERE o.restaurant_id = ? AND o.status = 'cancelled' AND o.cancelled_by IS NOT NULL
           `;
           const [cancelledBy] = await pool.execute(cancelQuery, [restaurant.restaurant_id]);
-          
+
           return {
             ...restaurant,
             cancelled_by: cancelledBy.map(row => row.cancelled_by)
           };
         })
       );
-      
+
       return {
         message: 'Orders grouped by restaurant retrieved successfully',
         data: restaurantsWithDetails
@@ -590,23 +661,27 @@ async getDashboardStats() {
   async getAllUsers(options = {}) {
     try {
       const { page = 1, limit = 50, search } = options;
-      const offset = (page - 1) * limit;
+
+      // Ensure limit and offset are valid integers for safe interpolation
+      const safeLimit = parseInt(limit, 10) || 50;
+      const safePage = parseInt(page, 10) || 1;
+      const safeOffset = (safePage - 1) * safeLimit;
+
       const pool = require('../db/db');
-      
+
       let query = 'SELECT * FROM users WHERE 1=1';
       const params = [];
-      
+
       if (search) {
-        query += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+        query += ' AND (username LIKE ? OR email LIKE ? OR phone LIKE ?)';
         const searchPattern = `%${search}%`;
         params.push(searchPattern, searchPattern, searchPattern);
       }
-      
-      query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-      params.push(limit, offset);
-      
+
+      query += ` ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
+
       const [users] = await pool.execute(query, params);
-      
+
       // Get order statistics for each user
       const usersWithStats = await Promise.all(
         users.map(async (user) => {
@@ -619,10 +694,10 @@ async getDashboardStats() {
             FROM orders
             WHERE user_id = ?
           `;
-          const [stats] = await pool.execute(statsQuery, [user.user_id]);
-          
+          const [stats] = await pool.execute(statsQuery, [user.id]);
+
           const { password, ...userWithoutPassword } = user;
-          
+
           return {
             ...userWithoutPassword,
             total_orders: stats[0].total_orders || 0,
@@ -632,27 +707,27 @@ async getDashboardStats() {
           };
         })
       );
-      
+
       // Get total count
       let countQuery = 'SELECT COUNT(*) as total FROM users WHERE 1=1';
       const countParams = [];
-      
+
       if (search) {
-        countQuery += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+        countQuery += ' AND (username LIKE ? OR email LIKE ? OR phone LIKE ?)';
         const searchPattern = `%${search}%`;
         countParams.push(searchPattern, searchPattern, searchPattern);
       }
-      
+
       const [countResult] = await pool.execute(countQuery, countParams);
       const total = countResult[0].total;
-      
+
       return {
         users: usersWithStats,
         pagination: {
           total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit)
+          page: safePage,
+          limit: safeLimit,
+          totalPages: Math.ceil(total / safeLimit)
         }
       };
     } catch (error) {
@@ -664,19 +739,19 @@ async getDashboardStats() {
   async getUserDetails(userId) {
     try {
       const pool = require('../db/db');
-      
+
       // Get user info
       const [users] = await pool.execute(
-        'SELECT * FROM users WHERE user_id = ?',
+        'SELECT * FROM users WHERE id = ?',
         [userId]
       );
-      
+
       if (users.length === 0) {
         throw new Error('User not found');
       }
-      
+
       const { password, ...user } = users[0];
-      
+
       // Get user's orders
       const [orders] = await pool.execute(
         `SELECT 
@@ -689,13 +764,13 @@ async getDashboardStats() {
         ORDER BY o.created_at DESC`,
         [userId]
       );
-      
+
       // Parse items JSON
       const parsedOrders = orders.map(order => ({
         ...order,
         items: typeof order.items === 'string' ? JSON.parse(order.items) : order.items
       }));
-      
+
       // Get statistics
       const [stats] = await pool.execute(
         `SELECT 
@@ -707,7 +782,7 @@ async getDashboardStats() {
         WHERE user_id = ?`,
         [userId]
       );
-      
+
       return {
         message: 'User details retrieved successfully',
         user: {
@@ -729,12 +804,12 @@ async getDashboardStats() {
     try {
       const { restaurant_id, year } = options;
       const pool = require('../db/db');
-      
+
       if (restaurant_id) {
         // Get analytics for specific restaurant
         return await this.getRevenueAnalytics(restaurant_id, year);
       }
-      
+
       // Get overall analytics
       const query = `
         SELECT 
@@ -749,9 +824,9 @@ async getDashboardStats() {
         GROUP BY r.restaurant_id, r.name
         ORDER BY total_revenue DESC
       `;
-      
+
       const [results] = await pool.execute(query, [year]);
-      
+
       return {
         message: 'Analytics retrieved successfully',
         year,
@@ -766,7 +841,7 @@ async getDashboardStats() {
   async getRevenueAnalytics(restaurantId, year) {
     try {
       const pool = require('../db/db');
-      
+
       const query = `
         SELECT 
           MONTH(created_at) as month,
@@ -779,9 +854,9 @@ async getDashboardStats() {
         GROUP BY MONTH(created_at), MONTHNAME(created_at)
         ORDER BY MONTH(created_at)
       `;
-      
+
       const [results] = await pool.execute(query, [restaurantId, year]);
-      
+
       // Fill in missing months with zero values
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthlyData = months.map((month, index) => {
@@ -793,7 +868,7 @@ async getDashboardStats() {
           successful_orders: existing ? existing.successful_orders : 0
         };
       });
-      
+
       return {
         message: 'Revenue analytics retrieved successfully',
         restaurant_id: restaurantId,
@@ -809,7 +884,7 @@ async getDashboardStats() {
   async getMenuItemSales(restaurantId, year) {
     try {
       const pool = require('../db/db');
-      
+
       const query = `
         SELECT 
           MONTH(o.created_at) as month,
@@ -821,17 +896,17 @@ async getDashboardStats() {
           AND o.status = 'delivered'
         ORDER BY MONTH(o.created_at)
       `;
-      
+
       const [orders] = await pool.execute(query, [restaurantId, year]);
-      
+
       // Process items to count sales by month
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const itemSales = {};
-      
+
       orders.forEach(order => {
         const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
         const monthIndex = order.month - 1;
-        
+
         items.forEach(item => {
           if (!itemSales[item.name]) {
             itemSales[item.name] = months.map(() => 0);
@@ -839,7 +914,7 @@ async getDashboardStats() {
           itemSales[item.name][monthIndex] += item.quantity || 1;
         });
       });
-      
+
       // Format data for charts
       const monthlyData = months.map((month, index) => {
         const data = { month };
@@ -848,7 +923,7 @@ async getDashboardStats() {
         });
         return data;
       });
-      
+
       return {
         message: 'Menu item sales retrieved successfully',
         restaurant_id: restaurantId,

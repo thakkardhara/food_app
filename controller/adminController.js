@@ -37,51 +37,51 @@ class AdminController {
     try {
       const { admin_id } = req.admin;
       const admin = await adminService.getAdminProfile(admin_id);
-      
+
       const { password, ...adminProfile } = admin;
-      
+
       res.status(200).json({
         message: 'Profile retrieved successfully',
         admin: adminProfile
       });
     } catch (error) {
       console.error('Get admin profile error:', error.message);
-      
+
       if (error.message === 'Admin not found') {
         return res.status(404).json({ error: 'Admin not found' });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
 
-  
+
   // Update Restaurant Status
   async updateRestaurantStatus(req, res) {
     try {
       const { restaurant_id } = req.params;
       const { status } = req.body;
       const { admin_id } = req.admin;
-      
+
       const result = await adminService.updateRestaurantStatus(
         restaurant_id,
         status,
         admin_id
       );
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Update restaurant status error:', error.message);
-      
+
       if (error.message === 'Restaurant not found') {
         return res.status(404).json({ error: error.message });
       }
-      
-      if (error.message.includes('Invalid status') || 
-      error.message.includes('required')) {
+
+      if (error.message.includes('Invalid status') ||
+        error.message.includes('required')) {
         return res.status(400).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -89,14 +89,14 @@ class AdminController {
   async getAllRestaurants(req, res) {
     try {
       const { status, page = 1, limit = 20, search } = req.query;
-      
+
       const result = await adminService.getAllRestaurants({
         status,
         page: parseInt(page),
         limit: parseInt(limit),
         search
       });
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get all restaurants error:', error.message);
@@ -105,12 +105,12 @@ class AdminController {
   }
 
   // Get Restaurant Details
- async getRestaurantById(req, res) {
+  async getRestaurantById(req, res) {
     try {
       const { restaurant_id } = req.params;
-      
+
       const restaurant = await adminService.getRestaurantById(restaurant_id);
-      
+
       // Parse JSON fields if stored as strings
       if (typeof restaurant.cuisine === 'string') {
         restaurant.cuisine = JSON.parse(restaurant.cuisine);
@@ -121,47 +121,47 @@ class AdminController {
 
       // Remove password from response
       const { password, ...restaurantData } = restaurant;
-      
+
       res.status(200).json({
         message: 'Restaurant details retrieved successfully',
         restaurant: restaurantData
       });
-      
+
     } catch (error) {
       console.error('Get restaurant by ID error:', error.message);
-      
+
       if (error.message === 'Restaurant not found') {
         return res.status(404).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
 
   //  * Update restaurant settings by admin
- 
+
   async updateRestaurantSettings(req, res) {
     try {
       const { restaurant_id } = req.params;
       const settings = req.body;
-      
+
       const result = await adminService.updateRestaurantSettings(restaurant_id, settings);
-      
+
       res.status(200).json(result);
-      
+
     } catch (error) {
       console.error('Admin update restaurant settings error:', error.message);
-      
+
       if (error.message === 'Restaurant not found') {
         return res.status(404).json({ error: error.message });
       }
-      
-      if (error.message.includes('must be') || 
-          error.message.includes('Invalid') ||
-          error.message.includes('At least one')) {
+
+      if (error.message.includes('must be') ||
+        error.message.includes('Invalid') ||
+        error.message.includes('At least one')) {
         return res.status(400).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -174,18 +174,18 @@ class AdminController {
     try {
       const { restaurant_id } = req.params;
       const { reason } = req.body;
-      
+
       const result = await adminService.forceRestaurantOffline(restaurant_id, reason);
-      
+
       res.status(200).json(result);
-      
+
     } catch (error) {
       console.error('Force restaurant offline error:', error.message);
-      
+
       if (error.message === 'Restaurant not found') {
         return res.status(404).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -193,13 +193,25 @@ class AdminController {
   async getDashboardStats(req, res) {
     try {
       const stats = await adminService.getDashboardStats();
-      
+
       res.status(200).json({
         message: 'Dashboard statistics retrieved successfully',
         stats
       });
     } catch (error) {
       console.error('Get dashboard stats error:', error.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // Get Top Restaurants by Revenue
+  async getTopRestaurantsByRevenue(req, res) {
+    try {
+      const limit = parseInt(req.query.limit) || 3;
+      const result = await adminService.getTopRestaurantsByRevenue(limit);
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Get top restaurants error:', error.message);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -215,7 +227,7 @@ class AdminController {
         old_password,
         new_password
       );
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Admin change password error:', error.message);
@@ -228,9 +240,9 @@ class AdminController {
         return res.status(404).json({ error: error.message });
       }
 
-      if (error.message.includes('Invalid') || 
-          error.message.includes('required') ||
-          error.message.includes('must be')) {
+      if (error.message.includes('Invalid') ||
+        error.message.includes('required') ||
+        error.message.includes('must be')) {
         return res.status(400).json({ error: error.message });
       }
 
@@ -243,17 +255,17 @@ class AdminController {
     try {
       const { restaurant_id } = req.params;
       const { admin_id } = req.admin;
-      
+
       const result = await adminService.deleteRestaurant(restaurant_id, admin_id);
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Delete restaurant error:', error.message);
-      
+
       if (error.message === 'Restaurant not found') {
         return res.status(404).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -262,14 +274,14 @@ class AdminController {
   async getAllOrders(req, res) {
     try {
       const { status, restaurant_id, page = 1, limit = 50 } = req.query;
-      
+
       const result = await adminService.getAllOrders({
         status,
         restaurant_id,
         page: parseInt(page),
         limit: parseInt(limit)
       });
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get all orders error:', error.message);
@@ -292,13 +304,13 @@ class AdminController {
   async getAllUsers(req, res) {
     try {
       const { page = 1, limit = 50, search } = req.query;
-      
+
       const result = await adminService.getAllUsers({
         page: parseInt(page),
         limit: parseInt(limit),
         search
       });
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get all users error:', error.message);
@@ -310,17 +322,17 @@ class AdminController {
   async getUserDetails(req, res) {
     try {
       const { user_id } = req.params;
-      
+
       const result = await adminService.getUserDetails(user_id);
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get user details error:', error.message);
-      
+
       if (error.message === 'User not found') {
         return res.status(404).json({ error: error.message });
       }
-      
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -329,12 +341,12 @@ class AdminController {
   async getAnalytics(req, res) {
     try {
       const { restaurant_id, year } = req.query;
-      
+
       const result = await adminService.getAnalytics({
         restaurant_id,
         year: year ? parseInt(year) : new Date().getFullYear()
       });
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get analytics error:', error.message);
@@ -346,16 +358,16 @@ class AdminController {
   async getRevenueAnalytics(req, res) {
     try {
       const { restaurant_id, year } = req.query;
-      
+
       if (!restaurant_id) {
         return res.status(400).json({ error: 'Restaurant ID is required' });
       }
-      
+
       const result = await adminService.getRevenueAnalytics(
         restaurant_id,
         year ? parseInt(year) : new Date().getFullYear()
       );
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get revenue analytics error:', error.message);
@@ -367,16 +379,16 @@ class AdminController {
   async getMenuItemSales(req, res) {
     try {
       const { restaurant_id, year } = req.query;
-      
+
       if (!restaurant_id) {
         return res.status(400).json({ error: 'Restaurant ID is required' });
       }
-      
+
       const result = await adminService.getMenuItemSales(
         restaurant_id,
         year ? parseInt(year) : new Date().getFullYear()
       );
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error('Get menu item sales error:', error.message);

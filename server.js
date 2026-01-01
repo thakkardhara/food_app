@@ -25,6 +25,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Request logging - trace all incoming requests
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.originalUrl}`, req.method !== 'GET' ? JSON.stringify(req.body) : '');
+  next();
+});
+
 app.get("/", (req, res) => {
   res.send("api working!");
 });
@@ -45,3 +51,7 @@ app.use("/api/admin", adminRoutes);
 http.listen(port, () => {
   console.log(`Server running on ${process.env.PORT || 3000}...`);
 });
+
+
+
+

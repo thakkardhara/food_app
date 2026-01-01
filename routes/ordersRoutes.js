@@ -22,6 +22,15 @@ router.post('/:order_id/cancel', orderController.cancelOrder);
 // 5. Submit Pickup Details (user submits when ready for collection)
 router.post('/:order_id/pickup-details', orderController.submitPickupDetails);
 
+// 6. Get Order Timer State (user gets timer data for an order)
+router.get('/:order_id/timer', orderController.getOrderTimer);
+
+// 7. Get Order with Timer Data (user gets full order with timer)
+router.get('/:order_id/with-timer', orderController.getOrderWithTimer);
+
+// 8. Update Delivery Distance Data (sent when order is placed)
+router.post('/:order_id/delivery-distance', orderController.updateDeliveryDistance);
+
 
 /* ===============================
    RESTAURANT ENDPOINTS (Restricted)
@@ -50,13 +59,13 @@ router.get('/:order_id/pickup-details', orderController.getPickupDetails);
    ERROR HANDLER
    =============================== */
 router.use((error, req, res, next) => {
-  console.error('Order route error:', error);
+   console.error('Order route error:', error);
 
-  if (error.type === 'entity.parse.failed') {
-    return res.status(400).json({ error: 'Invalid JSON in request body' });
-  }
+   if (error.type === 'entity.parse.failed') {
+      return res.status(400).json({ error: 'Invalid JSON in request body' });
+   }
 
-  res.status(500).json({ error: 'Internal server error' });
+   res.status(500).json({ error: 'Internal server error' });
 });
 
 module.exports = router;

@@ -74,6 +74,11 @@ class OrderController {
 
   // 3. Update Order Status
   async updateOrderStatus(req, res) {
+    console.log('=== UPDATE ORDER STATUS CALLED ===', {
+      params: req.params,
+      body: req.body
+    });
+
     try {
       const { order_id } = req.params;
       const { status } = req.body;
@@ -95,12 +100,22 @@ class OrderController {
       }
 
       // Allow restaurants (or callers) to pass optional ETA minutes and seconds when confirming
-      const { eta_minutes = null, eta_seconds = null } = req.body || {};
+      const { eta_minutes = null, eta_seconds = null, delivery_time_minutes = null } = req.body || {};
+
+      console.log('[OrderController] Updating status with timer data:', {
+        order_id,
+        status,
+        eta_minutes,
+        eta_seconds,
+        delivery_time_minutes
+      });
+
       const result = await orderService.updateOrderStatus(
         order_id,
         status,
         eta_minutes,
-        eta_seconds
+        eta_seconds,
+        delivery_time_minutes
       );
       res.status(200).json(result);
     } catch (error) {
@@ -211,9 +226,9 @@ class OrderController {
 
       // Cancel the order with reason and who cancelled it
       const result = await orderService.cancelOrder(order_id, reason, cancelledBy);
-      
+
       console.log('✅ Order cancelled successfully:', result);
-      
+
       res.status(200).json(result);
     } catch (error) {
       console.error("❌ Cancel order error:", error.message);
@@ -335,6 +350,97 @@ class OrderController {
       res.status(500).json({ error: "Internal server error" });
     }
   }
+
+  // Timer-related endpoints
+
+  // 11. Get Order Timer State
+  async getOrderTimer(req, res) {
+    try {
+      const { order_id } = req.params;
+
+      if (!order_id) {
+        return res.status(400).json({ error: "Order ID is required" });
+      }
+
+      const timerState = await orderService.getOrderTimerState(order_id);
+
+      if (!timerState) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      res.status(200).json(timerState);
+    } catch (error) {
+      console.error("Get order timer error:", error.message);
+
+      if (error.message === "Order not found") {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  // 12. Get Order with Timer Data
+  async getOrderWithTimer(req, res) {
+    try {
+      const { order_id } = req.params;
+
+      if (!order_id) {
+        return res.status(400).json({ error: "Order ID is required" });
+      }
+
+      const result = await orderService.getOrderWithTimer(order_id);
+
+      if (!result) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Get order with timer error:", error.message);
+
+      if (error.message === "Order not found") {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  // 13. Update Delivery Distance Data
+  async updateDeliveryDistance(req, res) {
+    try {
+      const { order_id } = req.params;
+      const { distance_km, delivery_time_minutes } = req.body;
+
+      if (!order_id) {
+        return res.status(400).json({ error: "Order ID is required" });
+      }
+
+      if (distance_km === undefined || delivery_time_minutes === undefined) {
+        return res.status(400).json({
+          error: "distance_km and delivery_time_minutes are required"
+        });
+      }
+
+      const result = await orderService.updateDeliveryDistanceData(
+        order_id,
+        distance_km,
+        delivery_time_minutes
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Update delivery distance error:", error.message);
+
+      if (error.message === "Order not found") {
+        return res.status(404).json({ error: error.message });
+      }
+
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
 }
 
 module.exports = new OrderController();
+

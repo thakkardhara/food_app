@@ -1,5 +1,6 @@
 const orderRepository = require("../repository/orderRepository");
 const restaurantRepository = require("../repository/restaurantRepository");
+const timerService = require("./timerService");
 const crypto = require("crypto");
 
 class OrderService {
@@ -184,7 +185,8 @@ class OrderService {
     orderId,
     newStatus,
     eta_minutes = null,
-    eta_seconds = null
+    eta_seconds = null,
+    delivery_time_minutes = null
   ) {
     try {
       // Validate status
@@ -220,22 +222,64 @@ class OrderService {
         `Status updated to ${newStatus}`
       );
 
-      // If confirmed → save ETA as MM:SS string (no datetime logic)
+      // Handle timer updates based on status change
       if (newStatus === this.ORDER_STATUS.CONFIRMED) {
+        // Timer starts when order is confirmed
         const m = eta_minutes ? String(eta_minutes).padStart(2, "0") : "00";
         const s = eta_seconds ? String(eta_seconds).padStart(2, "0") : "00";
         const etaString = `${m}:${s}`;
 
+        console.log('[OrderService] Setting timer data on confirm:', {
+          orderId,
+          etaString,
+          eta_minutes,
+          eta_seconds,
+          delivery_time_minutes
+        });
+
         await orderRepository.updateDeliveryTime(orderId, etaString);
+
+        // Set confirmed_at timestamp (used as base for prep time calculation)
+        await orderRepository.updateConfirmedAt(orderId, new Date());
+
+        // Start timer with preparation time
+        const prepMinutes = timerService.convertTimeToMinutes(etaString);
+        const deliveryMins = delivery_time_minutes || order.timer_delivery_minutes || 0;
+
+        console.log('[OrderService] Timer values calculated:', {
+          prepMinutes,
+          deliveryMins
+        });
+
+        await orderRepository.updateTimerData(orderId, {
+          timer_started_at: new Date(),
+          timer_preparation_minutes: Math.round(prepMinutes),
+          timer_delivery_minutes: Math.round(deliveryMins),
+          timer_phase: 'preparation'
+        });
       }
 
-      // Return updated order
+      // Set out_for_delivery_at timestamp when order goes out for delivery
+      if (newStatus === this.ORDER_STATUS.OUT_FOR_DELIVERY) {
+        await orderRepository.updateOutForDeliveryAt(orderId, new Date());
+      }
+
+      // Update timer phase for other status changes
+      const timerUpdates = timerService.getTimerDataForStatusChange(order, newStatus);
+      if (Object.keys(timerUpdates).length > 0) {
+        await orderRepository.updateTimerData(orderId, timerUpdates);
+      }
+
+      // Return updated order with timer data
       const refreshed = await orderRepository.findOrderById(orderId);
+      const timerState = timerService.calculateTimerState(refreshed);
+
       return {
         order_id: orderId,
         status: newStatus,
         message: "Order status updated successfully",
         order: refreshed || null,
+        timer: timerState
       };
     } catch (error) {
       throw new Error(error.message);
@@ -580,6 +624,69 @@ class OrderService {
       throw new Error(error.message);
     }
   }
+
+  // Timer-related methods
+
+  /**
+   * Get order with calculated timer state
+   */
+  async getOrderWithTimer(orderId) {
+    try {
+      const order = await orderRepository.findOrderById(orderId);
+      if (!order) {
+        throw new Error("Order not found");
+      }
+
+      const timerState = timerService.calculateTimerState(order);
+
+      return {
+        order,
+        timer: timerState
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
+   * Get just the timer state for an order
+   */
+  async getOrderTimerState(orderId) {
+    try {
+      const order = await orderRepository.findOrderById(orderId);
+      if (!order) {
+        throw new Error("Order not found");
+      }
+
+      return timerService.calculateTimerState(order);
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  /**
+   * Update delivery distance data when order is placed
+   * This stores the calculated delivery time based on distance
+   */
+  async updateDeliveryDistanceData(orderId, distanceKm, deliveryTimeMinutes) {
+    try {
+      await orderRepository.updateDeliveryDistanceData(
+        orderId,
+        distanceKm,
+        deliveryTimeMinutes
+      );
+
+      return {
+        message: "Delivery distance data updated successfully",
+        order_id: orderId,
+        distance_km: distanceKm,
+        delivery_time_minutes: deliveryTimeMinutes
+      };
+    } catch (error) {
+      throw new Error(error.message);
+    }
+  }
 }
 
 module.exports = new OrderService();
+

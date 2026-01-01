@@ -25,6 +25,7 @@ router.patch('/restaurants/:restaurant_id/force-offline', adminController.forceR
 
 // Dashboard
 router.get('/dashboard/stats', adminController.getDashboardStats);
+router.get('/dashboard/top-restaurants', adminController.getTopRestaurantsByRevenue);
 
 // Orders management
 router.get('/orders', adminController.getAllOrders);
@@ -42,11 +43,11 @@ router.get('/analytics/menu-sales', adminController.getMenuItemSales);
 // Error handling middleware
 router.use((error, req, res, next) => {
   console.error('Admin route error:', error);
-  
+
   if (error.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON in request body' });
   }
-  
+
   res.status(500).json({ error: 'Internal server error' });
 });
 
